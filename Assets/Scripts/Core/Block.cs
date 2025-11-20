@@ -10,13 +10,17 @@ public class Block : MonoBehaviour
     private float stepTimer = 0f;
     private InputSystem_Actions inputActions;
 
+    private void Awake() 
+    { 
+        inputActions = new InputSystem_Actions(); 
+    }
+
     public void Initialize(Board board, BlockData data)
     {
         this.board = board;
         this.data = data;
         Sprite square = Resources.Load<Sprite>("Square");
 
-        // Create visual child objects
         foreach (Vector2Int cell in data.cells)
         {
             GameObject piece = new GameObject("Piece");
@@ -29,23 +33,37 @@ public class Block : MonoBehaviour
         }
     }
 
-    private void Awake() { inputActions = new InputSystem_Actions(); }
-
     private void OnEnable()
     {
-        inputActions.Player.Enable();
-        inputActions.Player.Jump.performed += OnRotate;
-        inputActions.Player.Move.performed += OnMove;
+        if (inputActions != null)
+        {
+            inputActions.Player.Enable();
+            inputActions.Player.Jump.performed += OnRotate;
+            inputActions.Player.Move.performed += OnMove;
+        }
     }
 
-    private void OnDisable() { inputActions.Player.Disable(); }
+    private void OnDisable() 
+    { 
+        if (inputActions != null)
+        {
+            inputActions.Player.Jump.performed -= OnRotate;
+            inputActions.Player.Move.performed -= OnMove;
+            inputActions.Player.Disable(); 
+        }
+    }
+
+    private void OnDestroy()
+    {
+        inputActions?.Dispose();
+    }
 
     private void Update()
     {
         stepTimer += Time.deltaTime;
         if (stepTimer >= stepTime)
         {
-            Move(new Vector3Int(0, -1, 0));
+            Move(new Vector3Int(0, -1, 0)); // Gravity move (soundless)
             stepTimer = 0f;
         }
     }
@@ -53,9 +71,18 @@ public class Block : MonoBehaviour
     private void OnMove(InputAction.CallbackContext context)
     {
         Vector2 input = context.ReadValue<Vector2>();
-        if (input.x > 0.5f) Move(new Vector3Int(1, 0, 0));
-        else if (input.x < -0.5f) Move(new Vector3Int(-1, 0, 0));
-        else if (input.y < -0.5f) Move(new Vector3Int(0, -1, 0));
+        bool success = false;
+
+        // We capture the result (true/false) of the Move function
+        if (input.x > 0.5f) success = Move(new Vector3Int(1, 0, 0));
+        else if (input.x < -0.5f) success = Move(new Vector3Int(-1, 0, 0));
+        else if (input.y < -0.5f) success = Move(new Vector3Int(0, -1, 0));
+
+        // Only play sound if the move actually happened
+        if (success)
+        {
+            board.PlayMoveSound();
+        }
     }
 
     private void OnRotate(InputAction.CallbackContext context)
@@ -66,22 +93,32 @@ public class Block : MonoBehaviour
         // 2. Fix rotation drift
         transform.eulerAngles = new Vector3(0, 0, Mathf.Round(transform.eulerAngles.z / 90) * 90);
 
-        // 3. Check if valid using the BOARD'S logic
-        if (!board.IsValidPosition(this, Vector3Int.RoundToInt(transform.position)))
+        // 3. Check if valid
+        bool valid = board.IsValidPosition(this, Vector3Int.RoundToInt(transform.position));
+        
+        if (!valid)
         {
             // Try Wall Kicks
-            if (TryWallKick(new Vector3Int(1, 0, 0))) return;
-            if (TryWallKick(new Vector3Int(-1, 0, 0))) return;
-            if (TryWallKick(new Vector3Int(0, 1, 0))) return; // Floor kick
+            if (TryWallKick(new Vector3Int(1, 0, 0))) valid = true;
+            else if (TryWallKick(new Vector3Int(-1, 0, 0))) valid = true;
+            else if (TryWallKick(new Vector3Int(0, 1, 0))) valid = true;
             
-            // If all fail, rotate back
-            transform.Rotate(0, 0, -90); 
+            // If still invalid, revert rotation
+            if (!valid)
+            {
+                transform.Rotate(0, 0, -90); 
+            }
+        }
+
+        // Play sound if valid
+        if (valid)
+        {
+            board.PlayMoveSound();
         }
     }
 
     private bool TryWallKick(Vector3Int offset)
     {
-        // Test position with offset
         Vector3Int testPos = Vector3Int.RoundToInt(transform.position) + offset;
         
         if (board.IsValidPosition(this, testPos)) 
@@ -92,24 +129,24 @@ public class Block : MonoBehaviour
         return false;
     }
 
-    private void Move(Vector3Int translation)
+    // FIX IS HERE: Changed from 'void' to 'bool'
+    private bool Move(Vector3Int translation)
     {
-        // Calculate where we WANT to go
         Vector3Int newPosition = Vector3Int.RoundToInt(transform.position) + translation;
 
-        // Ask the Board if that spot is valid
         if (board.IsValidPosition(this, newPosition))
         {
             transform.position = newPosition;
+            return true; // Move successful
         }
         else
         {
-            // If we failed to move DOWN, lock the block
             if (translation.y == -1)
             {
-                enabled = false; // Disable input
+                enabled = false; 
                 board.LockBlock(this);
             }
+            return false; // Move failed
         }
     }
 }

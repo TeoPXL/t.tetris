@@ -8,6 +8,11 @@ public class Board : MonoBehaviour
     public Tilemap backgroundTilemap; // New: Reference to background
     public Block activeBlock;
     
+    [Header("Audio")]
+    public AudioClip moveClip;
+    public AudioClip clearClip;
+    private AudioSource audioSource;
+    
     [Header("Settings")]
     public Vector2Int boardSize = new Vector2Int(10, 20);
     public Vector3Int spawnPosition = new Vector3Int(0, 8, 0);
@@ -17,19 +22,33 @@ public class Board : MonoBehaviour
     
     private void Start()
     {
-        // 1. Auto-assign refs if missing (Safety check)
+        // --- AUDIO SETUP ---
+        audioSource = gameObject.AddComponent<AudioSource>();
+        // Load clips automatically from Assets/Resources/Sounds/
+        if (moveClip == null) moveClip = Resources.Load<AudioClip>("Sounds/beat");
+        if (clearClip == null) clearClip = Resources.Load<AudioClip>("Sounds/clear");
+        // -------------------
+
         if (tilemap == null) tilemap = transform.Find("Grid/Tilemap")?.GetComponent<Tilemap>();
         if (backgroundTilemap == null) backgroundTilemap = transform.Find("Grid/BackgroundTilemap")?.GetComponent<Tilemap>();
 
-        // 2. Configure Tilemaps
         ConfigureTilemap(tilemap);
         ConfigureTilemap(backgroundTilemap);
 
-        // 3. Setup View
         FitCamera();
         DrawGrid();
 
         SpawnBlock();
+    }
+    
+    public void PlayMoveSound()
+    {
+        if (moveClip != null) audioSource.PlayOneShot(moveClip);
+    }
+
+    public void PlayClearSound()
+    {
+        if (clearClip != null) audioSource.PlayOneShot(clearClip);
     }
 
     private void ConfigureTilemap(Tilemap tm)
@@ -161,11 +180,25 @@ public class Board : MonoBehaviour
     {
         RectInt bounds = new RectInt(new Vector2Int(-boardSize.x / 2, -boardSize.y / 2), boardSize);
         int row = bounds.yMin;
+        int linesCleared = 0;
 
         while (row < bounds.yMax)
         {
-            if (IsLineFull(row)) LineClear(row);
-            else row++;
+            if (IsLineFull(row))
+            {
+                LineClear(row);
+                linesCleared++;
+            }
+            else
+            {
+                row++;
+            }
+        }
+        
+        if (linesCleared > 0)
+        {
+            PlayClearSound();
+            // Optional: Update score here later based on linesCleared
         }
     }
 
