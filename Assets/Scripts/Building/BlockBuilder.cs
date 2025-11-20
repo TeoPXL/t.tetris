@@ -1,91 +1,114 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 public class BlockBuilder : MonoBehaviour
 {
-    public int gridSize = 5;
-    private bool[,] grid;
+    private HashSet<Vector2Int> activeCells = new HashSet<Vector2Int>();
+    private const int MAX_BLOCKS = 10;
+    private const string REGISTRY_KEY = "BLOCK_REGISTRY";
 
-    private void Start()
+    private void Start() { ResetBuilder(); }
+
+    public void ResetBuilder()
     {
-        grid = new bool[gridSize, gridSize];
+        activeCells.Clear();
+        activeCells.Add(Vector2Int.zero); // Always start center
     }
 
-    public void ToggleCell(int x, int y)
+    public bool AddCell(Vector2Int pos)
     {
-        if (x >= 0 && x < gridSize && y >= 0 && y < gridSize)
-        {
-            grid[x, y] = !grid[x, y];
-        }
+        if (activeCells.Count >= MAX_BLOCKS) return false;
+        if (activeCells.Contains(pos)) return false;
+        activeCells.Add(pos);
+        return true;
     }
 
-    public BlockData CreateBlockData(string name)
+    public void RemoveCell(Vector2Int pos)
     {
-        List<Vector2Int> cells = new List<Vector2Int>();
-        for (int x = 0; x < gridSize; x++)
+        if (pos == Vector2Int.zero) return; // Cannot remove anchor
+        if (activeCells.Contains(pos)) activeCells.Remove(pos);
+    }
+
+    public List<Vector2Int> GetActiveCells() { return activeCells.ToList(); }
+
+    public List<Vector2Int> GetAvailableExpansions()
+    {
+        HashSet<Vector2Int> candidates = new HashSet<Vector2Int>();
+        Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        foreach (Vector2Int cell in activeCells)
         {
-            for (int y = 0; y < gridSize; y++)
+            foreach (Vector2Int dir in directions)
             {
-                if (grid[x, y])
-                {
-                    cells.Add(new Vector2Int(x, y));
-                }
+                Vector2Int neighbor = cell + dir;
+                if (!activeCells.Contains(neighbor)) candidates.Add(neighbor);
             }
         }
-
-        if (cells.Count == 0 || cells.Count > 6)
-        {
-            Debug.LogError("Invalid block size");
-            return null;
-        }
-
-        // Check contiguity here (BFS/DFS)
-
-        BlockData newData = ScriptableObject.CreateInstance<BlockData>();
-        newData.cells = cells.ToArray();
-        newData.name = name;
-        
-        // Save asset (Editor only usually, but for runtime we might need JSON or just keep in memory)
-        // For this assignment, we might simulate saving or use JSON serialization for custom blocks
-        
-        return newData;
+        return candidates.ToList();
     }
 
-    public void SaveBlock(BlockData data)
+    // --- SAVING SYSTEM ---
+
+    public void SaveBlock(string name)
     {
+        if (string.IsNullOrEmpty(name) || activeCells.Count == 0) return;
+
+        BlockData data = ScriptableObject.CreateInstance<BlockData>();
+        data.cells = activeCells.ToArray();
+        data.name = name;
+        data.color = Color.HSVToRGB(Random.value, 0.8f, 0.8f); // Random nice color
+
         string json = JsonUtility.ToJson(data);
-        // Save to file or PlayerPrefs
-        PlayerPrefs.SetString($"CustomBlock_{data.name}", json);
+        PlayerPrefs.SetString($"CustomBlock_{name}", json);
+        
+        AddToRegistry(name);
         PlayerPrefs.Save();
     }
 
-    public BlockData LoadBlock(string name)
+    public void LoadBlockToBuilder(string name)
     {
-        if (PlayerPrefs.HasKey($"CustomBlock_{name}"))
-        {
-            string json = PlayerPrefs.GetString($"CustomBlock_{name}");
-            BlockData data = ScriptableObject.CreateInstance<BlockData>();
-            JsonUtility.FromJsonOverwrite(json, data);
-            return data;
-        }
-        return null;
+        string json = PlayerPrefs.GetString($"CustomBlock_{name}");
+        if (string.IsNullOrEmpty(json)) return;
+
+        BlockData data = ScriptableObject.CreateInstance<BlockData>();
+        JsonUtility.FromJsonOverwrite(json, data);
+
+        activeCells.Clear();
+        foreach (var cell in data.cells) activeCells.Add(cell);
     }
 
     public void DeleteBlock(string name)
     {
-        if (PlayerPrefs.HasKey($"CustomBlock_{name}"))
+        PlayerPrefs.DeleteKey($"CustomBlock_{name}");
+        RemoveFromRegistry(name);
+    }
+
+    // Registry Management to know WHAT we have saved
+    private void AddToRegistry(string name)
+    {
+        List<string> reg = GetRegistry();
+        if (!reg.Contains(name))
         {
-            PlayerPrefs.DeleteKey($"CustomBlock_{name}");
-            PlayerPrefs.Save();
+            reg.Add(name);
+            PlayerPrefs.SetString(REGISTRY_KEY, string.Join(";", reg));
         }
     }
 
-    public void RestoreDefaults()
+    private void RemoveFromRegistry(string name)
     {
-        // Clear all custom blocks or reset specific keys
-        // For now, let's just log it as we don't have a list of all custom blocks tracked yet
-        Debug.Log("Restoring defaults...");
+        List<string> reg = GetRegistry();
+        if (reg.Contains(name))
+        {
+            reg.Remove(name);
+            PlayerPrefs.SetString(REGISTRY_KEY, string.Join(";", reg));
+        }
+    }
+
+    public List<string> GetRegistry()
+    {
+        string raw = PlayerPrefs.GetString(REGISTRY_KEY, "");
+        if (string.IsNullOrEmpty(raw)) return new List<string>();
+        return raw.Split(';').ToList();
     }
 }
-
-

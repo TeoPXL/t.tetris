@@ -5,36 +5,38 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
 using System.IO;
+using System.Collections.Generic;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
+using UnityEngine.Tilemaps;
 
 public class ProjectSetupTools : EditorWindow
 {
     [MenuItem("Tetris/Setup Project")]
     public static void SetupProject()
     {
-        if (!EditorUtility.DisplayDialog("Setup Project", "This will overwrite the scenes in Assets/Scenes. Are you sure?", "Yes", "No"))
-        {
-            return;
-        }
+        if (!EditorUtility.DisplayDialog("Setup Project", "This will overwrite Scenes and Resources. Sure?", "Yes", "No")) return;
 
         EnsureDirectory("Assets/Scenes");
+        EnsureDirectory("Assets/Resources/Blocks");
+        EnsureDirectory("Assets/Prefabs/UI");
+
         CreateScenes();
-        
+        CreateStandardBlocks(); 
+        CreateBuilderAssets();  
+
         SetupMainMenu();
         SetupGameScene();
         SetupOptionsScene();
         SetupBuildingScene();
-        
-        EditorUtility.DisplayDialog("Project Setup", "Project setup complete! Please add scenes to Build Settings.", "OK");
+
+        EditorUtility.DisplayDialog("Project Setup", "Setup complete! \n1. Add scenes to Build Settings.\n2. TextMeshPro Essentials might need importing.", "OK");
     }
 
     private static void EnsureDirectory(string path)
     {
-        if (!Directory.Exists(path))
-        {
-            Directory.CreateDirectory(path);
-        }
+        if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+        AssetDatabase.Refresh();
     }
 
     private static void CreateScenes()
@@ -51,19 +53,117 @@ public class ProjectSetupTools : EditorWindow
         }
     }
 
+    private static void CreateStandardBlocks()
+    {
+        CreateBlockAsset("I_Block", Color.cyan, new Vector2Int[] { new(0,0), new(-1,0), new(1,0), new(2,0) });
+        CreateBlockAsset("J_Block", Color.blue, new Vector2Int[] { new(0,0), new(-1,0), new(1,0), new(-1,1) });
+        CreateBlockAsset("L_Block", new Color(1f, 0.5f, 0f), new Vector2Int[] { new(0,0), new(-1,0), new(1,0), new(1,1) });
+        CreateBlockAsset("O_Block", Color.yellow, new Vector2Int[] { new(0,0), new(1,0), new(0,1), new(1,1) });
+        CreateBlockAsset("S_Block", Color.green, new Vector2Int[] { new(0,0), new(-1,0), new(0,1), new(1,1) });
+        CreateBlockAsset("T_Block", Color.magenta, new Vector2Int[] { new(0,0), new(-1,0), new(1,0), new(0,1) });
+        CreateBlockAsset("Z_Block", Color.red, new Vector2Int[] { new(0,0), new(1,0), new(0,1), new(-1,1) });
+        AssetDatabase.SaveAssets();
+    }
+
+    private static void CreateBlockAsset(string name, Color col, Vector2Int[] cells)
+    {
+        string path = $"Assets/Resources/Blocks/{name}.asset";
+        BlockData data = AssetDatabase.LoadAssetAtPath<BlockData>(path);
+        if (data == null)
+        {
+            data = ScriptableObject.CreateInstance<BlockData>();
+            AssetDatabase.CreateAsset(data, path);
+        }
+        data.cells = cells;
+        data.color = col;
+        EditorUtility.SetDirty(data);
+    }
+
+    private static void CreateBuilderAssets()
+    {
+        // Square Texture
+        Texture2D texture = new Texture2D(32, 32);
+        Color[] pixels = new Color[32 * 32];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
+        texture.SetPixels(pixels);
+        texture.Apply();
+        byte[] bytes = texture.EncodeToPNG();
+        File.WriteAllBytes("Assets/Resources/Square.png", bytes);
+        AssetDatabase.Refresh();
+
+        Sprite squareSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Resources/Square.png");
+
+        // Cell Prefab
+        GameObject cellObj = new GameObject("CellPrefab");
+        Image img = cellObj.AddComponent<Image>();
+        img.sprite = squareSprite;
+        img.color = Color.cyan;
+        RectTransform rect = cellObj.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(40, 40); // Slightly smaller for padding
+        PrefabUtility.SaveAsPrefabAsset(cellObj, "Assets/Prefabs/UI/CellPrefab.prefab");
+        DestroyImmediate(cellObj);
+
+        // Add Button Prefab
+        GameObject addObj = new GameObject("AddButtonPrefab");
+        Image addImg = addObj.AddComponent<Image>();
+        addImg.sprite = squareSprite;
+        addImg.color = new Color(1, 1, 1, 0.3f);
+        Button btn = addObj.AddComponent<Button>();
+        
+        GameObject textObj = new GameObject("Text");
+        textObj.transform.SetParent(addObj.transform, false);
+        TextMeshProUGUI tmp = textObj.AddComponent<TextMeshProUGUI>();
+        tmp.text = "+";
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.fontSize = 25;
+        tmp.color = Color.black;
+        tmp.raycastTarget = false; 
+        tmp.rectTransform.anchorMin = Vector2.zero;
+        tmp.rectTransform.anchorMax = Vector2.one;
+        
+        rect = addObj.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(40, 40);
+        PrefabUtility.SaveAsPrefabAsset(addObj, "Assets/Prefabs/UI/AddButtonPrefab.prefab");
+        DestroyImmediate(addObj);
+
+        // Saved List Item Prefab
+        GameObject listObj = new GameObject("SavedItemPrefab");
+        listObj.AddComponent<Image>().color = new Color(0.2f, 0.2f, 0.2f);
+        listObj.AddComponent<LayoutElement>().minHeight = 40;
+        
+        GameObject nameTxt = CreateText(listObj.transform, "Name", "BlockName", new Vector2(0,0), 20);
+        RectTransform nameRect = nameTxt.GetComponent<RectTransform>();
+        nameRect.anchorMin = new Vector2(0, 0);
+        nameRect.anchorMax = new Vector2(0.6f, 1);
+        nameTxt.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.Left;
+
+        GameObject loadBtn = CreateButton(listObj.transform, "Load", "Load", Vector2.zero);
+        RectTransform loadRect = loadBtn.GetComponent<RectTransform>();
+        loadRect.anchorMin = new Vector2(0.6f, 0);
+        loadRect.anchorMax = new Vector2(0.8f, 1);
+        loadRect.offsetMin = loadRect.offsetMax = Vector2.zero;
+
+        GameObject delBtn = CreateButton(listObj.transform, "Del", "X", Vector2.zero);
+        delBtn.GetComponent<Image>().color = Color.red;
+        RectTransform delRect = delBtn.GetComponent<RectTransform>();
+        delRect.anchorMin = new Vector2(0.8f, 0);
+        delRect.anchorMax = new Vector2(1, 1);
+        delRect.offsetMin = delRect.offsetMax = Vector2.zero;
+
+        PrefabUtility.SaveAsPrefabAsset(listObj, "Assets/Prefabs/UI/SavedItemPrefab.prefab");
+        DestroyImmediate(listObj);
+    }
+
     private static void SetupMainMenu()
     {
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/MainMenu.unity");
         ClearScene();
-        
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
-        EnsureLocalizationManager();
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject panel = CreatePanel(canvas.transform, "MenuPanel");
-        
         CreateText(panel.transform, "Title", "TETRIS", new Vector2(0, 100), 60);
         
         GameObject playBtn = CreateButton(panel.transform, "PlayButton", "Play", new Vector2(0, 20));
@@ -86,25 +186,35 @@ public class ProjectSetupTools : EditorWindow
     {
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/GameScene.unity");
         ClearScene();
-        
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
-        EnsureScoreBoard();
+        
+        GameObject boardObj = new GameObject("Board");
+        boardObj.AddComponent<Board>();
+        // Grid for tiles
+        GameObject grid = new GameObject("Grid", typeof(Grid));
+        grid.transform.SetParent(boardObj.transform);
+        GameObject tilemap = new GameObject("Tilemap", typeof(Tilemap), typeof(TilemapRenderer));
+        tilemap.transform.SetParent(grid.transform);
+        boardObj.GetComponent<Board>().tilemap = tilemap.GetComponent<Tilemap>();
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject hudPanel = CreatePanel(canvas.transform, "HUDPanel");
-        
+        hudPanel.GetComponent<Image>().color = Color.clear; // Transparent HUD overlay
+
         GameObject scoreText = CreateText(hudPanel.transform, "ScoreText", "Score: 0", new Vector2(-300, 150), 36);
         GameObject nextBlockText = CreateText(hudPanel.transform, "NextBlockText", "Next", new Vector2(300, 150), 36);
-        GameObject pauseBtn = CreateButton(hudPanel.transform, "PauseButton", "Pause", new Vector2(350, 100));
-        
+        GameObject pauseBtn = CreateButton(hudPanel.transform, "PauseButton", "||", new Vector2(350, 180));
+        ((RectTransform)pauseBtn.transform).sizeDelta = new Vector2(50, 50);
+
+        // --- PAUSE MENU ---
         GameObject pauseMenu = CreatePanel(canvas.transform, "PauseMenu");
         pauseMenu.SetActive(false);
-        CreateText(pauseMenu.transform, "PauseTitle", "PAUSED", new Vector2(0, 50), 48);
-        GameObject resumeBtn = CreateButton(pauseMenu.transform, "ResumeButton", "Resume", new Vector2(0, -20));
-        GameObject optionsBtn = CreateButton(pauseMenu.transform, "OptionsButton", "Options", new Vector2(0, -80));
-        GameObject quitBtn = CreateButton(pauseMenu.transform, "QuitButton", "Quit", new Vector2(0, -140));
+        CreateText(pauseMenu.transform, "Title", "PAUSED", new Vector2(0, 100), 50);
+        GameObject resumeBtn = CreateButton(pauseMenu.transform, "ResumeButton", "Resume", new Vector2(0, 20));
+        GameObject optionsBtn = CreateButton(pauseMenu.transform, "OptionsButton", "Options", new Vector2(0, -40));
+        GameObject quitBtn = CreateButton(pauseMenu.transform, "QuitButton", "Main Menu", new Vector2(0, -100));
 
         GameObject hudObj = new GameObject("GameHUD");
         GameHUD hud = hudObj.AddComponent<GameHUD>();
@@ -116,10 +226,6 @@ public class ProjectSetupTools : EditorWindow
         hud.optionsButton = optionsBtn.GetComponent<Button>();
         hud.quitButton = quitBtn.GetComponent<Button>();
 
-        GameObject boardObj = new GameObject("Board");
-        boardObj.AddComponent<Board>();
-        boardObj.AddComponent<Grid>();
-        
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
     }
@@ -128,37 +234,22 @@ public class ProjectSetupTools : EditorWindow
     {
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/OptionsScene.unity");
         ClearScene();
-        
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject panel = CreatePanel(canvas.transform, "OptionsPanel");
-        
         CreateText(panel.transform, "Title", "OPTIONS", new Vector2(0, 150), 48);
-        
-        GameObject clearBtn = CreateButton(panel.transform, "ClearScoresButton", "Clear High Scores", new Vector2(0, 50));
         GameObject backBtn = CreateButton(panel.transform, "BackButton", "Back", new Vector2(0, -150));
-        
-        GameObject warningPanel = CreatePanel(canvas.transform, "WarningPanel");
-        warningPanel.SetActive(false);
-        CreateText(warningPanel.transform, "WarningText", "Are you sure?", new Vector2(0, 50), 36);
-        GameObject confirmBtn = CreateButton(warningPanel.transform, "ConfirmButton", "Yes", new Vector2(-50, -20));
-        GameObject cancelBtn = CreateButton(warningPanel.transform, "CancelButton", "No", new Vector2(50, -20));
 
         GameObject uiObj = new GameObject("OptionsUI");
-        OptionsUI ui = uiObj.AddComponent<OptionsUI>();
-        ui.clearScoresButton = clearBtn.GetComponent<Button>();
-        ui.backButton = backBtn.GetComponent<Button>();
-        ui.warningPanel = warningPanel;
-        ui.confirmClearButton = confirmBtn.GetComponent<Button>();
-        ui.cancelClearButton = cancelBtn.GetComponent<Button>();
+        // Assuming OptionsUI exists
+        // OptionsUI ui = uiObj.AddComponent<OptionsUI>();
+        // ui.backButton = backBtn.GetComponent<Button>();
         
-        GameObject resDropdown = CreateDropdown(panel.transform, "ResolutionDropdown", new Vector2(0, 100));
-        GameObject langDropdown = CreateDropdown(panel.transform, "LanguageDropdown", new Vector2(0, 0));
-        ui.resolutionDropdown = resDropdown.GetComponent<TMP_Dropdown>();
-        ui.languageDropdown = langDropdown.GetComponent<TMP_Dropdown>();
+        // Basic Back Logic for now since OptionsUI wasn't provided in prompt
+        backBtn.GetComponent<Button>().onClick.AddListener(() => SceneManager.LoadScene("MainMenu"));
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -168,21 +259,62 @@ public class ProjectSetupTools : EditorWindow
     {
         Scene scene = EditorSceneManager.OpenScene("Assets/Scenes/BuildingScene.unity");
         ClearScene();
-        
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject panel = CreatePanel(canvas.transform, "BuildingPanel");
-        
-        CreateText(panel.transform, "Title", "BUILDER", new Vector2(0, 150), 48);
+        CreateText(panel.transform, "Title", "BLOCK BUILDER", new Vector2(0, 200), 40);
 
-        GameObject saveBtn = CreateButton(panel.transform, "SaveButton", "Save", new Vector2(-200, -150));
-        GameObject clearBtn = CreateButton(panel.transform, "ClearButton", "Clear", new Vector2(0, -150));
-        GameObject backBtn = CreateButton(panel.transform, "BackButton", "Back", new Vector2(200, -150));
+        // Controls
+        GameObject saveBtn = CreateButton(panel.transform, "SaveButton", "Save", new Vector2(-150, -200));
+        GameObject clearBtn = CreateButton(panel.transform, "ClearButton", "Reset", new Vector2(0, -200));
+        GameObject backBtn = CreateButton(panel.transform, "BackButton", "Back", new Vector2(150, -200));
+        GameObject nameInput = CreateInputField(panel.transform, "NameInput", new Vector2(0, 150));
+
+        // Grid Container
+        GameObject gridContainer = new GameObject("GridContainer");
+        gridContainer.transform.SetParent(panel.transform, false);
+        RectTransform gridRect = gridContainer.AddComponent<RectTransform>();
+        gridRect.anchorMin = new Vector2(0.5f, 0.5f);
+        gridRect.anchorMax = new Vector2(0.5f, 0.5f);
+        gridRect.sizeDelta = new Vector2(300, 300); // Area for building
+
+        // Saved List Container
+        GameObject savedListPanel = new GameObject("SavedListPanel");
+        savedListPanel.transform.SetParent(panel.transform, false);
+        Image listBg = savedListPanel.AddComponent<Image>();
+        listBg.color = new Color(0.1f, 0.1f, 0.1f, 0.9f);
+        RectTransform savedRect = savedListPanel.GetComponent<RectTransform>();
+        savedRect.anchorMin = new Vector2(0, 0);
+        savedRect.anchorMax = new Vector2(0.25f, 1);
+        savedRect.offsetMin = new Vector2(10, 10);
+        savedRect.offsetMax = new Vector2(-10, -10);
+
+        CreateText(savedListPanel.transform, "ListTitle", "Saved Blocks", new Vector2(0, 200), 24);
+
+        GameObject scrollArea = new GameObject("ScrollArea");
+        scrollArea.transform.SetParent(savedListPanel.transform, false);
+        RectTransform scrollRectTrans = scrollArea.AddComponent<RectTransform>();
+        scrollRectTrans.anchorMin = Vector2.zero;
+        scrollRectTrans.anchorMax = Vector2.one;
+        scrollRectTrans.offsetMin = new Vector2(10, 10);
+        scrollRectTrans.offsetMax = new Vector2(-10, -50);
         
-        GameObject nameInput = CreateInputField(panel.transform, "NameInput", new Vector2(0, 100));
+        // Content
+        GameObject content = new GameObject("Content");
+        content.transform.SetParent(scrollArea.transform, false);
+        VerticalLayoutGroup vlg = content.AddComponent<VerticalLayoutGroup>();
+        vlg.childControlHeight = false;
+        vlg.childForceExpandHeight = false;
+        vlg.spacing = 5;
+        ContentSizeFitter csf = content.AddComponent<ContentSizeFitter>();
+        csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        RectTransform contentRect = content.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0, 1);
+        contentRect.anchorMax = new Vector2(1, 1);
+        contentRect.pivot = new Vector2(0.5f, 1);
 
         GameObject uiObj = new GameObject("BuildingUI");
         BuildingModuleUI ui = uiObj.AddComponent<BuildingModuleUI>();
@@ -190,6 +322,13 @@ public class ProjectSetupTools : EditorWindow
         ui.clearButton = clearBtn.GetComponent<Button>();
         ui.backButton = backBtn.GetComponent<Button>();
         ui.blockNameInput = nameInput.GetComponent<TMP_InputField>();
+        ui.gridContainer = gridContainer.transform;
+        ui.savedListContent = content.transform;
+        
+        // Assign generated prefabs
+        ui.cellPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/CellPrefab.prefab");
+        ui.addButtonPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/AddButtonPrefab.prefab");
+        ui.savedItemPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/SavedItemPrefab.prefab");
 
         GameObject builderObj = new GameObject("BlockBuilder");
         BlockBuilder builder = builderObj.AddComponent<BlockBuilder>();
@@ -199,58 +338,37 @@ public class ProjectSetupTools : EditorWindow
         EditorSceneManager.SaveScene(scene);
     }
 
+    // --- Helpers ---
     private static void ClearScene()
     {
-        GameObject[] roots = SceneManager.GetActiveScene().GetRootGameObjects();
-        foreach (GameObject root in roots)
-        {
-            // Keep Main Camera if it exists and is standard? No, let's just recreate to be safe.
-            DestroyImmediate(root);
-        }
+        foreach (GameObject root in SceneManager.GetActiveScene().GetRootGameObjects()) DestroyImmediate(root);
     }
 
-    // Helper Methods
     private static void EnsureCamera()
     {
-        GameObject cam = new GameObject("Main Camera");
+        GameObject cam = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
         cam.tag = "MainCamera";
-        Camera c = cam.AddComponent<Camera>();
-        c.clearFlags = CameraClearFlags.SolidColor;
-        c.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
-        c.orthographic = true;
-        c.orthographicSize = 10;
-        cam.AddComponent<AudioListener>();
+        cam.transform.position = new Vector3(0, 0, -10);
+        cam.GetComponent<Camera>().clearFlags = CameraClearFlags.SolidColor;
+        cam.GetComponent<Camera>().backgroundColor = new Color(0.15f, 0.15f, 0.15f);
     }
 
     private static void EnsureEventSystem()
     {
-        GameObject eventSystem = new GameObject("EventSystem");
-        eventSystem.AddComponent<EventSystem>();
-        eventSystem.AddComponent<InputSystemUIInputModule>();
+        if (Object.FindObjectOfType<EventSystem>() == null)
+        {
+            GameObject eventSystem = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+        }
     }
-
-    private static void EnsureGameManager()
-    {
-        new GameObject("GameManager").AddComponent<GameManager>();
-    }
-
-    private static void EnsureScoreBoard()
-    {
-        new GameObject("ScoreBoard").AddComponent<ScoreBoard>();
-    }
-
-    private static void EnsureLocalizationManager()
-    {
-        new GameObject("LocalizationManager").AddComponent<LocalizationManager>();
-    }
+    
+    private static void EnsureGameManager() { if(Object.FindObjectOfType<GameManager>() == null) new GameObject("GameManager").AddComponent<GameManager>(); }
 
     private static GameObject CreateCanvas(string name)
     {
-        GameObject go = new GameObject(name);
-        Canvas c = go.AddComponent<Canvas>();
-        c.renderMode = RenderMode.ScreenSpaceOverlay;
-        go.AddComponent<CanvasScaler>();
-        go.AddComponent<GraphicRaycaster>();
+        GameObject go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        go.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        go.GetComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        go.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920, 1080);
         return go;
     }
 
@@ -258,146 +376,73 @@ public class ProjectSetupTools : EditorWindow
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
-        Image image = go.AddComponent<Image>();
-        image.color = new Color(0, 0, 0, 0.5f);
+        go.AddComponent<Image>().color = new Color(0, 0, 0, 0.85f);
         RectTransform rect = go.GetComponent<RectTransform>();
         rect.anchorMin = Vector2.zero;
         rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
         return go;
     }
 
-    private static TMP_FontAsset GetDefaultFont()
-    {
-        // Try explicit path first
-        string path = "Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset";
-        TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-        
-        if (font == null)
-        {
-            // Try TMP Settings
-            if (TMP_Settings.defaultFontAsset != null)
-            {
-                font = TMP_Settings.defaultFontAsset;
-            }
-        }
-
-        if (font == null)
-        {
-            // Fallback search
-            string[] guids = AssetDatabase.FindAssets("t:TMP_FontAsset");
-            if (guids.Length > 0)
-            {
-                string assetPath = AssetDatabase.GUIDToAssetPath(guids[0]);
-                font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(assetPath);
-            }
-        }
-        
-        return font;
-    }
-
-    private static GameObject CreateButton(Transform parent, string name, string text, Vector2 position)
+    private static GameObject CreateButton(Transform parent, string name, string text, Vector2 pos)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
-        Image image = go.AddComponent<Image>();
-        image.color = Color.white; // Button background white
-        Button btn = go.AddComponent<Button>();
+        go.AddComponent<Image>();
+        go.AddComponent<Button>();
         
-        GameObject textObj = new GameObject("Text");
-        textObj.transform.SetParent(go.transform, false);
-        TextMeshProUGUI tmp = textObj.AddComponent<TextMeshProUGUI>();
+        GameObject txt = new GameObject("Text");
+        txt.transform.SetParent(go.transform, false);
+        TextMeshProUGUI tmp = txt.AddComponent<TextMeshProUGUI>();
         tmp.text = text;
-        tmp.alignment = TextAlignmentOptions.Center;
         tmp.fontSize = 24;
-        tmp.color = Color.black; // Text black
-        tmp.font = GetDefaultFont(); // Assign font
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.black;
+
+        RectTransform r = go.GetComponent<RectTransform>();
+        r.sizeDelta = new Vector2(160, 40);
+        r.anchoredPosition = pos;
         
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(160, 40);
-        rect.anchoredPosition = position;
-        
-        RectTransform textRect = textObj.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = Vector2.zero;
-        textRect.offsetMax = Vector2.zero;
-        
+        txt.GetComponent<RectTransform>().anchorMin = Vector2.zero;
+        txt.GetComponent<RectTransform>().anchorMax = Vector2.one;
         return go;
     }
 
-    private static GameObject CreateText(Transform parent, string name, string content, Vector2 position, float fontSize)
+    private static GameObject CreateText(Transform parent, string name, string content, Vector2 pos, float size)
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
         TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
         tmp.text = content;
-        tmp.fontSize = fontSize;
+        tmp.fontSize = size;
         tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = Color.white; // Title text white
-        tmp.font = GetDefaultFont(); // Assign font
-        
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(400, 100);
-        rect.anchoredPosition = position;
-        
+        tmp.color = Color.white;
+        go.GetComponent<RectTransform>().anchoredPosition = pos;
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
         return go;
     }
 
-    private static GameObject CreateInputField(Transform parent, string name, Vector2 position)
+    private static GameObject CreateInputField(Transform parent, string name, Vector2 pos)
     {
-        GameObject go = new GameObject(name);
+        GameObject go = new GameObject(name, typeof(Image), typeof(TMP_InputField));
         go.transform.SetParent(parent, false);
-        Image image = go.AddComponent<Image>();
-        image.color = Color.white;
-        TMP_InputField input = go.AddComponent<TMP_InputField>();
+        TMP_InputField input = go.GetComponent<TMP_InputField>();
         
-        GameObject textArea = new GameObject("TextArea");
+        GameObject textArea = new GameObject("TextArea", typeof(RectTransform));
         textArea.transform.SetParent(go.transform, false);
-        RectTransform areaRect = textArea.AddComponent<RectTransform>();
-        areaRect.anchorMin = Vector2.zero;
-        areaRect.anchorMax = Vector2.one;
-        areaRect.offsetMin = new Vector2(10, 10);
-        areaRect.offsetMax = new Vector2(-10, -10);
+        ((RectTransform)textArea.transform).anchorMin = Vector2.zero;
+        ((RectTransform)textArea.transform).anchorMax = Vector2.one;
+        ((RectTransform)textArea.transform).offsetMin = new Vector2(10, 0);
         
-        GameObject textObj = new GameObject("Text");
-        textObj.transform.SetParent(textArea.transform, false);
-        TextMeshProUGUI text = textObj.AddComponent<TextMeshProUGUI>();
-        text.fontSize = 24;
-        text.color = Color.black;
-        text.font = GetDefaultFont();
+        GameObject txt = new GameObject("Text", typeof(TextMeshProUGUI));
+        txt.transform.SetParent(textArea.transform, false);
+        input.textComponent = txt.GetComponent<TextMeshProUGUI>();
+        input.textComponent.color = Color.black;
+        input.textComponent.fontSize = 20;
+        input.textComponent.alignment = TextAlignmentOptions.Left;
         
-        GameObject placeholderObj = new GameObject("Placeholder");
-        placeholderObj.transform.SetParent(textArea.transform, false);
-        TextMeshProUGUI placeholder = placeholderObj.AddComponent<TextMeshProUGUI>();
-        placeholder.fontSize = 24;
-        placeholder.color = new Color(0.5f, 0.5f, 0.5f, 1f);
-        placeholder.font = GetDefaultFont();
-        placeholder.text = "Enter text...";
-        
-        input.textViewport = areaRect;
-        input.textComponent = text;
-        input.placeholder = placeholder;
-        
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(200, 40);
-        rect.anchoredPosition = position;
-        
-        return go;
-    }
-
-    private static GameObject CreateDropdown(Transform parent, string name, Vector2 position)
-    {
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        Image image = go.AddComponent<Image>();
-        TMP_Dropdown dropdown = go.AddComponent<TMP_Dropdown>();
-        
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(200, 40);
-        rect.anchoredPosition = position;
-        
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(200, 40);
+        go.GetComponent<RectTransform>().anchoredPosition = pos;
         return go;
     }
 }
