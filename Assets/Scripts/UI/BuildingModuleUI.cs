@@ -19,6 +19,9 @@ public class BuildingModuleUI : MonoBehaviour
 
     private float cellSize = 40f;
 
+    public TextMeshProUGUI titleText;
+    public TextMeshProUGUI savedListTitleText;
+
     private void Start()
     {
         saveButton.onClick.AddListener(OnSave);
@@ -27,6 +30,41 @@ public class BuildingModuleUI : MonoBehaviour
 
         OnClear(); // Initial Draw
         RefreshSavedList();
+        
+        if (LocalizationManager.Instance != null)
+        {
+            LocalizationManager.Instance.OnLanguageChanged += UpdateUITexts;
+            UpdateUITexts();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (LocalizationManager.Instance != null)
+        {
+            LocalizationManager.Instance.OnLanguageChanged -= UpdateUITexts;
+        }
+    }
+
+    private void UpdateUITexts()
+    {
+        if (LocalizationManager.Instance == null) return;
+        
+        if (titleText != null) titleText.text = LocalizationManager.Instance.GetText("block_builder");
+        if (savedListTitleText != null) savedListTitleText.text = LocalizationManager.Instance.GetText("saved_blocks");
+        
+        SetButtonText(saveButton, "save");
+        SetButtonText(clearButton, "reset");
+        SetButtonText(backButton, "back");
+    }
+
+    private void SetButtonText(Button btn, string key)
+    {
+        if (btn != null)
+        {
+            TextMeshProUGUI txt = btn.GetComponentInChildren<TextMeshProUGUI>();
+            if (txt != null) txt.text = LocalizationManager.Instance.GetText(key);
+        }
     }
 
     private void OnSave()

@@ -38,7 +38,7 @@ public class Block : MonoBehaviour
         if (inputActions != null)
         {
             inputActions.Player.Enable();
-            inputActions.Player.Jump.performed += OnRotate;
+            // inputActions.Player.Jump.performed += OnRotate; // Removed to avoid conflict with Space (Hard Drop)
             inputActions.Player.Move.performed += OnMove;
         }
     }
@@ -47,7 +47,7 @@ public class Block : MonoBehaviour
     { 
         if (inputActions != null)
         {
-            inputActions.Player.Jump.performed -= OnRotate;
+            // inputActions.Player.Jump.performed -= OnRotate;
             inputActions.Player.Move.performed -= OnMove;
             inputActions.Player.Disable(); 
         }
@@ -66,6 +66,31 @@ public class Block : MonoBehaviour
             Move(new Vector3Int(0, -1, 0)); // Gravity move (soundless)
             stepTimer = 0f;
         }
+
+        // Input Handling
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            HardDrop();
+        }
+        
+        if (Keyboard.current.shiftKey.wasPressedThisFrame || Keyboard.current.cKey.wasPressedThisFrame)
+        {
+            board.HoldBlock();
+        }
+
+        if (Keyboard.current.upArrowKey.wasPressedThisFrame || Keyboard.current.wKey.wasPressedThisFrame)
+        {
+            Rotate();
+        }
+    }
+
+    private void HardDrop()
+    {
+        while (Move(new Vector3Int(0, -1, 0)))
+        {
+            // Continue moving down until we hit something
+        }
+        // The last Move call failed and called LockBlock, so we are done.
     }
 
     private void OnMove(InputAction.CallbackContext context)
@@ -85,7 +110,7 @@ public class Block : MonoBehaviour
         }
     }
 
-    private void OnRotate(InputAction.CallbackContext context)
+    private void Rotate()
     {
         // 1. Rotate tentatively
         transform.Rotate(0, 0, 90);

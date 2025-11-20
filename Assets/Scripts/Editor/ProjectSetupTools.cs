@@ -250,6 +250,41 @@ public class ProjectSetupTools : EditorWindow
         GameObject optionsBtn = CreateButton(pauseMenu.transform, "OptionsButton", "Options", new Vector2(0, -40));
         GameObject quitBtn = CreateButton(pauseMenu.transform, "QuitButton", "Main Menu", new Vector2(0, -100));
 
+        // Hold Block UI
+        CreateText(hudPanel.transform, "HoldLabel", "Hold", new Vector2(-450, 100), 24);
+        GameObject holdObj = new GameObject("HoldImage", typeof(Image));
+        holdObj.transform.SetParent(hudPanel.transform, false);
+        holdObj.GetComponent<Image>().color = Color.clear;
+        RectTransform holdRect = holdObj.GetComponent<RectTransform>();
+        holdRect.anchoredPosition = new Vector2(-450, 0);
+        holdRect.sizeDelta = new Vector2(80, 80);
+
+        // Next Blocks UI
+        List<Image> nextImages = new List<Image>();
+        for (int i = 0; i < 3; i++)
+        {
+            GameObject nextObj = new GameObject($"NextImage_{i}", typeof(Image));
+            nextObj.transform.SetParent(hudPanel.transform, false);
+            nextObj.GetComponent<Image>().color = Color.clear; // Hidden initially
+            RectTransform nextRect = nextObj.GetComponent<RectTransform>();
+            nextRect.anchoredPosition = new Vector2(450, 200 - (i * 100));
+            nextRect.sizeDelta = new Vector2(60, 60);
+            nextImages.Add(nextObj.GetComponent<Image>());
+        }
+
+        // Game Over Panel
+        GameObject gameOverPanel = CreatePanel(canvas.transform, "GameOverPanel");
+        gameOverPanel.SetActive(false);
+        CreateText(gameOverPanel.transform, "GameOverTitle", "GAME OVER", new Vector2(0, 150), 60);
+        GameObject finalScoreObj = CreateText(gameOverPanel.transform, "FinalScore", "Final Score: 0", new Vector2(0, 50), 36);
+        
+        GameObject nameInputObj = CreateInputField(gameOverPanel.transform, "NameInput", new Vector2(0, -20));
+        GameObject submitBtn = CreateButton(gameOverPanel.transform, "SubmitButton", "Submit", new Vector2(150, -20));
+        ((RectTransform)submitBtn.transform).sizeDelta = new Vector2(100, 40);
+
+        GameObject restartBtn = CreateButton(gameOverPanel.transform, "RestartButton", "Restart", new Vector2(-100, -100));
+        GameObject menuBtn = CreateButton(gameOverPanel.transform, "MenuButton", "Main Menu", new Vector2(100, -100));
+
         GameObject hudObj = new GameObject("GameHUD");
         GameHUD hud = hudObj.AddComponent<GameHUD>();
         hud.scoreText = scoreText.GetComponent<TextMeshProUGUI>();
@@ -259,6 +294,16 @@ public class ProjectSetupTools : EditorWindow
         hud.resumeButton = resumeBtn.GetComponent<Button>();
         hud.optionsButton = optionsBtn.GetComponent<Button>();
         hud.quitButton = quitBtn.GetComponent<Button>();
+        
+        hud.holdImage = holdObj.GetComponent<Image>();
+        hud.nextImages = nextImages;
+        
+        hud.gameOverPanel = gameOverPanel;
+        hud.finalScoreText = finalScoreObj.GetComponent<TextMeshProUGUI>();
+        hud.nameInputField = nameInputObj.GetComponent<TMP_InputField>();
+        hud.submitScoreButton = submitBtn.GetComponent<Button>();
+        hud.restartButton = restartBtn.GetComponent<Button>();
+        hud.menuButton = menuBtn.GetComponent<Button>();
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -271,22 +316,155 @@ public class ProjectSetupTools : EditorWindow
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
+        EnsureLocalizationManager();
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject panel = CreatePanel(canvas.transform, "OptionsPanel");
-        CreateText(panel.transform, "Title", "OPTIONS", new Vector2(0, 150), 48);
+        CreateText(panel.transform, "Title", "OPTIONS", new Vector2(0, 200), 48);
+
+        // --- UI Elements ---
+        // Resolution
+        GameObject resLabel = CreateText(panel.transform, "ResLabel", "Resolution", new Vector2(-200, 100), 30);
+        GameObject resDropdownObj = CreateDropdown(panel.transform, "ResolutionDropdown", new Vector2(100, 100));
+        
+        // Language
+        GameObject langLabel = CreateText(panel.transform, "LangLabel", "Language", new Vector2(-200, 20), 30);
+        GameObject langDropdownObj = CreateDropdown(panel.transform, "LanguageDropdown", new Vector2(100, 20));
+
+        // Clear Scores
+        GameObject clearBtn = CreateButton(panel.transform, "ClearScoresButton", "Clear Scores", new Vector2(0, -60));
+        
+        // Back
         GameObject backBtn = CreateButton(panel.transform, "BackButton", "Back", new Vector2(0, -150));
 
+        // Warning Panel
+        GameObject warningPanel = CreatePanel(canvas.transform, "WarningPanel");
+        warningPanel.SetActive(false);
+        GameObject warningTitle = CreateText(warningPanel.transform, "WarningTitle", "Are you sure?", new Vector2(0, 50), 40);
+        GameObject yesBtn = CreateButton(warningPanel.transform, "YesButton", "Yes", new Vector2(-100, -50));
+        GameObject noBtn = CreateButton(warningPanel.transform, "NoButton", "No", new Vector2(100, -50));
+
+        // --- OptionsUI Component ---
         GameObject uiObj = new GameObject("OptionsUI");
-        // Assuming OptionsUI exists
-        // OptionsUI ui = uiObj.AddComponent<OptionsUI>();
-        // ui.backButton = backBtn.GetComponent<Button>();
+        OptionsUI ui = uiObj.AddComponent<OptionsUI>();
         
-        // Basic Back Logic for now since OptionsUI wasn't provided in prompt
-        backBtn.GetComponent<Button>().onClick.AddListener(() => SceneManager.LoadScene("MainMenu"));
+        ui.resolutionDropdown = resDropdownObj.GetComponent<TMP_Dropdown>();
+        ui.languageDropdown = langDropdownObj.GetComponent<TMP_Dropdown>();
+        ui.clearScoresButton = clearBtn.GetComponent<Button>();
+        ui.backButton = backBtn.GetComponent<Button>();
+        ui.warningPanel = warningPanel;
+        ui.confirmClearButton = yesBtn.GetComponent<Button>();
+        ui.cancelClearButton = noBtn.GetComponent<Button>();
+        
+        ui.resolutionLabel = resLabel.GetComponent<TextMeshProUGUI>();
+        ui.languageLabel = langLabel.GetComponent<TextMeshProUGUI>();
+        ui.warningText = warningTitle.GetComponent<TextMeshProUGUI>();
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
+    }
+
+    private static GameObject CreateDropdown(Transform parent, string name, Vector2 pos)
+    {
+        // Create root
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        Image img = go.AddComponent<Image>();
+        img.color = Color.white;
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(300, 40);
+        rt.anchoredPosition = pos;
+
+        TMP_Dropdown dropdown = go.AddComponent<TMP_Dropdown>();
+        dropdown.targetGraphic = img;
+        
+        // Label
+        GameObject label = new GameObject("Label");
+        label.transform.SetParent(go.transform, false);
+        TextMeshProUGUI text = label.AddComponent<TextMeshProUGUI>();
+        text.text = "Option A";
+        text.color = Color.black;
+        text.alignment = TextAlignmentOptions.Left;
+        text.fontSize = 24;
+        ((RectTransform)label.transform).anchorMin = Vector2.zero;
+        ((RectTransform)label.transform).anchorMax = Vector2.one;
+        ((RectTransform)label.transform).offsetMin = new Vector2(10, 0);
+        dropdown.captionText = text;
+
+        // Arrow
+        GameObject arrow = new GameObject("Arrow");
+        arrow.transform.SetParent(go.transform, false);
+        Image arrowImg = arrow.AddComponent<Image>();
+        arrowImg.color = Color.black;
+        ((RectTransform)arrow.transform).anchorMin = new Vector2(1, 0.5f);
+        ((RectTransform)arrow.transform).anchorMax = new Vector2(1, 0.5f);
+        ((RectTransform)arrow.transform).sizeDelta = new Vector2(20, 20);
+        ((RectTransform)arrow.transform).anchoredPosition = new Vector2(-15, 0);
+
+        // Template (The popup)
+        GameObject template = new GameObject("Template");
+        template.transform.SetParent(go.transform, false);
+        Image tempImg = template.AddComponent<Image>();
+        tempImg.color = new Color(0.9f, 0.9f, 0.9f);
+        ScrollRect scroll = template.AddComponent<ScrollRect>();
+        
+        RectTransform templateRect = template.GetComponent<RectTransform>();
+        templateRect.anchorMin = new Vector2(0, 0);
+        templateRect.anchorMax = new Vector2(1, 0);
+        templateRect.pivot = new Vector2(0.5f, 1);
+        templateRect.anchoredPosition = new Vector2(0, 2);
+        templateRect.sizeDelta = new Vector2(0, 150);
+        
+        template.SetActive(false);
+        dropdown.template = templateRect;
+        
+        // Viewport
+        GameObject viewport = new GameObject("Viewport");
+        viewport.transform.SetParent(template.transform, false);
+        viewport.AddComponent<Image>().maskable = true;
+        viewport.AddComponent<Mask>().showMaskGraphic = false;
+        RectTransform viewportRect = viewport.GetComponent<RectTransform>();
+        viewportRect.anchorMin = Vector2.zero;
+        viewportRect.anchorMax = Vector2.one;
+        viewportRect.sizeDelta = Vector2.zero;
+        
+        // Content
+        GameObject content = new GameObject("Content");
+        content.transform.SetParent(viewport.transform, false);
+        RectTransform contentRect = content.AddComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0, 1);
+        contentRect.anchorMax = new Vector2(1, 1);
+        contentRect.pivot = new Vector2(0.5f, 1);
+        contentRect.sizeDelta = new Vector2(0, 28);
+        
+        scroll.content = contentRect;
+        scroll.viewport = viewportRect;
+
+        // Item
+        GameObject item = new GameObject("Item");
+        item.transform.SetParent(content.transform, false);
+        Toggle toggle = item.AddComponent<Toggle>();
+        item.AddComponent<Image>().color = Color.white; // Background
+        RectTransform itemRect = item.GetComponent<RectTransform>();
+        itemRect.anchorMin = new Vector2(0, 0.5f);
+        itemRect.anchorMax = new Vector2(1, 0.5f);
+        itemRect.sizeDelta = new Vector2(0, 20);
+        
+        GameObject itemLabel = new GameObject("Item Label");
+        itemLabel.transform.SetParent(item.transform, false);
+        TextMeshProUGUI itemText = itemLabel.AddComponent<TextMeshProUGUI>();
+        itemText.text = "Option";
+        itemText.color = Color.black;
+        itemText.fontSize = 24;
+        itemText.alignment = TextAlignmentOptions.Left;
+        RectTransform itemLabelRect = itemLabel.GetComponent<RectTransform>();
+        itemLabelRect.anchorMin = Vector2.zero;
+        itemLabelRect.anchorMax = Vector2.one;
+        itemLabelRect.offsetMin = new Vector2(10, 0);
+        
+        dropdown.itemText = itemText;
+        
+        return go;
     }
 
     private static void SetupBuildingScene()
@@ -299,7 +477,7 @@ public class ProjectSetupTools : EditorWindow
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject panel = CreatePanel(canvas.transform, "BuildingPanel");
-        CreateText(panel.transform, "Title", "BLOCK BUILDER", new Vector2(0, 200), 40);
+        GameObject titleObj = CreateText(panel.transform, "Title", "BLOCK BUILDER", new Vector2(0, 200), 40);
 
         // Controls
         GameObject saveBtn = CreateButton(panel.transform, "SaveButton", "Save", new Vector2(-150, -200));
@@ -326,7 +504,7 @@ public class ProjectSetupTools : EditorWindow
         savedRect.offsetMin = new Vector2(10, 10);
         savedRect.offsetMax = new Vector2(-10, -10);
 
-        CreateText(savedListPanel.transform, "ListTitle", "Saved Blocks", new Vector2(0, 200), 24);
+        GameObject listTitleObj = CreateText(savedListPanel.transform, "ListTitle", "Saved Blocks", new Vector2(0, 200), 24);
 
         GameObject scrollArea = new GameObject("ScrollArea");
         scrollArea.transform.SetParent(savedListPanel.transform, false);
@@ -358,6 +536,9 @@ public class ProjectSetupTools : EditorWindow
         ui.blockNameInput = nameInput.GetComponent<TMP_InputField>();
         ui.gridContainer = gridContainer.transform;
         ui.savedListContent = content.transform;
+        
+        ui.titleText = titleObj.GetComponent<TextMeshProUGUI>();
+        ui.savedListTitleText = listTitleObj.GetComponent<TextMeshProUGUI>();
         
         // Assign generated prefabs
         ui.cellPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/CellPrefab.prefab");
@@ -396,6 +577,8 @@ public class ProjectSetupTools : EditorWindow
     }
     
     private static void EnsureGameManager() { if(Object.FindObjectOfType<GameManager>() == null) new GameObject("GameManager").AddComponent<GameManager>(); }
+    
+    private static void EnsureLocalizationManager() { if(Object.FindObjectOfType<LocalizationManager>() == null) new GameObject("LocalizationManager").AddComponent<LocalizationManager>(); }
 
     private static GameObject CreateCanvas(string name)
     {

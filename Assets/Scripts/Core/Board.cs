@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.Tilemaps;
+using System.Collections.Generic;
+using System.Linq;
 
 public class Board : MonoBehaviour
 {
@@ -19,6 +21,13 @@ public class Board : MonoBehaviour
     
     [Header("Visuals")]
     public Color gridColor = new Color(0.1f, 0.1f, 0.1f, 1f); // Dark grey
+
+    [Header("Game State")]
+    public int score = 0;
+    public BlockData heldBlock;
+    public bool canHold = true;
+    private Queue<BlockData> nextBlocks = new Queue<BlockData>();
+    private const int NextBlockCount = 3;
     
     private void Start()
     {
@@ -38,7 +47,36 @@ public class Board : MonoBehaviour
         FitCamera();
         DrawGrid();
 
+        InitializeQueue();
         SpawnBlock();
+    }
+
+    private void InitializeQueue()
+    {
+        for (int i = 0; i < NextBlockCount; i++)
+        {
+            nextBlocks.Enqueue(GameManager.Instance.GetRandomBlock());
+        }
+        UpdateHUD();
+    }
+
+    private BlockData GetNextBlock()
+    {
+        BlockData next = nextBlocks.Dequeue();
+        nextBlocks.Enqueue(GameManager.Instance.GetRandomBlock());
+        UpdateHUD();
+        return next;
+    }
+
+    private void UpdateHUD()
+    {
+        GameHUD hud = FindObjectOfType<GameHUD>();
+        if (hud != null)
+        {
+            hud.UpdateScore(score);
+            hud.UpdateNext(nextBlocks.ToList());
+            hud.UpdateHold(heldBlock);
+        }
     }
     
     public void PlayMoveSound()
@@ -105,8 +143,15 @@ public class Board : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
 
-        BlockData data = GameManager.Instance.GetRandomBlock();
+        BlockData data = GetNextBlock();
+        SpawnBlock(data);
+    }
+
+    public void SpawnBlock(BlockData data)
+    {
         if (data == null) return;
+        
+        canHold = true; // Reset hold capability on new spawn
 
         GameObject blockObj = new GameObject("Block");
         activeBlock = blockObj.AddComponent<Block>();
@@ -119,7 +164,18 @@ public class Board : MonoBehaviour
         if (!IsValidPosition(activeBlock, Vector3Int.RoundToInt(blockObj.transform.position)))
         {
             Destroy(blockObj);
-            GameManager.Instance.SetState(GameManager.GameState.GameOver);
+            GameOver();
+        }
+    }
+
+    private void GameOver()
+    {
+        GameManager.Instance.SetState(GameManager.GameState.GameOver);
+        // Show Game Over UI
+        GameHUD hud = FindObjectOfType<GameHUD>();
+        if (hud != null)
+        {
+            hud.ShowGameOver(score);
         }
     }
 
@@ -198,8 +254,45 @@ public class Board : MonoBehaviour
         if (linesCleared > 0)
         {
             PlayClearSound();
-            // Optional: Update score here later based on linesCleared
+            CalculateScore(linesCleared);
         }
+    }
+
+    private void CalculateScore(int lines)
+    {
+        int points = 0;
+        switch (lines)
+        {
+            case 1: points = 100; break;
+            case 2: points = 300; break;
+            case 3: points = 500; break;
+            case 4: points = 800; break;
+        }
+        score += points;
+        UpdateHUD();
+    }
+
+    public void HoldBlock()
+    {
+        if (!canHold || activeBlock == null) return;
+
+        BlockData currentData = activeBlock.data;
+        Destroy(activeBlock.gameObject);
+
+        if (heldBlock == null)
+        {
+            heldBlock = currentData;
+            SpawnBlock(); // Spawns next from queue
+        }
+        else
+        {
+            BlockData temp = heldBlock;
+            heldBlock = currentData;
+            SpawnBlock(temp); // Spawns the previously held block
+        }
+
+        canHold = false;
+        UpdateHUD();
     }
 
     private bool IsLineFull(int row)
