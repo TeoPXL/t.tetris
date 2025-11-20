@@ -3,30 +3,83 @@ using UnityEngine.Tilemaps;
 
 public class Board : MonoBehaviour
 {
+    [Header("References")]
     public Tilemap tilemap;
+    public Tilemap backgroundTilemap; // New: Reference to background
     public Block activeBlock;
-    public Vector2Int boardSize = new Vector2Int(10, 20);
     
-    private int spawnY = 8; 
-
+    [Header("Settings")]
+    public Vector2Int boardSize = new Vector2Int(10, 20);
+    public Vector3Int spawnPosition = new Vector3Int(0, 8, 0);
+    
+    [Header("Visuals")]
+    public Color gridColor = new Color(0.1f, 0.1f, 0.1f, 1f); // Dark grey
+    
     private void Start()
     {
-        if (tilemap == null) tilemap = GetComponentInChildren<Tilemap>();
-        
-        // --- VISUAL FIX: ALIGNMENT ---
-        // Force the Tilemap to draw tiles at strict integer coordinates (0,0) 
-        // instead of the cell center (0.5, 0.5). This prevents the "Snap/Jump".
-        tilemap.tileAnchor = Vector3.zero;
-        
-        // Force Grid to be 1x1
-        if (tilemap.layoutGrid != null)
-        {
-            tilemap.layoutGrid.cellSize = Vector3.one;
-            tilemap.layoutGrid.cellGap = Vector3.zero;
-        }
-        // -----------------------------
+        // 1. Auto-assign refs if missing (Safety check)
+        if (tilemap == null) tilemap = transform.Find("Grid/Tilemap")?.GetComponent<Tilemap>();
+        if (backgroundTilemap == null) backgroundTilemap = transform.Find("Grid/BackgroundTilemap")?.GetComponent<Tilemap>();
+
+        // 2. Configure Tilemaps
+        ConfigureTilemap(tilemap);
+        ConfigureTilemap(backgroundTilemap);
+
+        // 3. Setup View
+        FitCamera();
+        DrawGrid();
 
         SpawnBlock();
+    }
+
+    private void ConfigureTilemap(Tilemap tm)
+    {
+        if (tm == null) return;
+        tm.tileAnchor = Vector3.zero;
+        if (tm.layoutGrid != null)
+        {
+            tm.layoutGrid.cellSize = Vector3.one;
+            tm.layoutGrid.cellGap = Vector3.zero;
+        }
+    }
+
+    private void FitCamera()
+    {
+        Camera cam = Camera.main;
+        if (cam == null) return;
+
+        // Calculate height needed: Board Height / 2 + Padding (2 units)
+        float targetSize = (boardSize.y / 2f) + 2f;
+        
+        cam.orthographic = true;
+        cam.orthographicSize = targetSize;
+        
+        // Center the camera on the board (assuming board is centered at 0,0)
+        // We keep Z at -10 to ensure things are rendered
+        cam.transform.position = new Vector3(0, 0, -10);
+    }
+
+    private void DrawGrid()
+    {
+        if (backgroundTilemap == null) return;
+
+        backgroundTilemap.ClearAllTiles();
+        
+        // Create a visual tile for the background
+        Tile tile = ScriptableObject.CreateInstance<Tile>();
+        tile.sprite = Resources.Load<Sprite>("Square"); // Uses your existing Square asset
+        tile.color = gridColor;
+
+        // Loop from negative half to positive half to cover the board centered at 0,0
+        RectInt bounds = new RectInt(new Vector2Int(-boardSize.x / 2, -boardSize.y / 2), boardSize);
+
+        for (int x = bounds.xMin; x < bounds.xMax; x++)
+        {
+            for (int y = bounds.yMin; y < bounds.yMax; y++)
+            {
+                backgroundTilemap.SetTile(new Vector3Int(x, y, 0), tile);
+            }
+        }
     }
 
     public void SpawnBlock()
@@ -40,9 +93,9 @@ public class Board : MonoBehaviour
         activeBlock = blockObj.AddComponent<Block>();
         activeBlock.Initialize(this, data);
 
-        // Center Logic
+        // Center Logic + Spawn Y
         Vector3Int centerOffset = CalculateSpawnOffset(data);
-        blockObj.transform.position = new Vector3Int(centerOffset.x, spawnY, 0);
+        blockObj.transform.position = new Vector3Int(centerOffset.x, spawnPosition.y, 0);
 
         if (!IsValidPosition(activeBlock, Vector3Int.RoundToInt(blockObj.transform.position)))
         {
@@ -54,43 +107,37 @@ public class Board : MonoBehaviour
     private Vector3Int CalculateSpawnOffset(BlockData data)
     {
         if (data.cells == null || data.cells.Length == 0) return Vector3Int.zero;
-
         int minX = int.MaxValue;
         int maxX = int.MinValue;
-
         foreach (var cell in data.cells)
         {
             if (cell.x < minX) minX = cell.x;
             if (cell.x > maxX) maxX = cell.x;
         }
-
-        // Adjust centering logic for 0-anchor
         int midPoint = (minX + maxX) / 2;
         int xOffset = (midPoint >= 0) ? -1 : 0;
         return new Vector3Int(xOffset, 0, 0);
     }
 
-    // Check if Whole Block fits
     public bool IsValidPosition(Block block, Vector3Int position)
     {
         RectInt bounds = new RectInt(new Vector2Int(-boardSize.x / 2, -boardSize.y / 2), boardSize);
 
         foreach (Vector2Int cell in block.data.cells)
         {
-            Vector3Int tilePos = Vector3Int.RoundToInt(block.transform.TransformPoint((Vector3Int)cell));
+            // FIX: Manually create a Vector3 from the Vector2Int cell data
+            Vector3 cellLocal = new Vector3(cell.x, cell.y, 0);
 
+            // 1. Get the rotated offset
+            Vector3 cellOffset = block.transform.rotation * cellLocal;
+            
+            // 2. Add that offset to the PROPOSED position
+            Vector3Int tilePos = Vector3Int.RoundToInt((Vector3)position + cellOffset);
+
+            // 3. Check bounds and tiles
             if (!bounds.Contains((Vector2Int)tilePos)) return false;
             if (tilemap.HasTile(tilePos)) return false;
         }
-        return true;
-    }
-
-    // Check if Single Point fits
-    public bool IsValidPosition(Vector3Int pos)
-    {
-        RectInt bounds = new RectInt(new Vector2Int(-boardSize.x / 2, -boardSize.y / 2), boardSize);
-        if (!bounds.Contains((Vector2Int)pos)) return false;
-        if (tilemap.HasTile(pos)) return false;
         return true;
     }
 
@@ -101,8 +148,7 @@ public class Board : MonoBehaviour
             Vector3Int tilePos = Vector3Int.RoundToInt(block.transform.TransformPoint((Vector3Int)cell));
             Tile tile = ScriptableObject.CreateInstance<Tile>();
             tile.color = block.data.color;
-            Sprite s = Resources.Load<Sprite>("Square");
-            if(s != null) tile.sprite = s;
+            tile.sprite = Resources.Load<Sprite>("Square");
             tilemap.SetTile(tilePos, tile);
         }
 

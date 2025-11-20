@@ -200,33 +200,46 @@ public class ProjectSetupTools : EditorWindow
         EnsureGameManager();
         
         GameObject boardObj = new GameObject("Board");
-        boardObj.AddComponent<Board>();
+        Board board = boardObj.AddComponent<Board>();
         
-        // --- GRID & TILEMAP FIXES ---
+        // --- GRID CONTAINER ---
         GameObject gridObj = new GameObject("Grid", typeof(Grid));
         gridObj.transform.SetParent(boardObj.transform);
         Grid grid = gridObj.GetComponent<Grid>();
-        grid.cellSize = new Vector3(1, 1, 0); // Force 1:1 aspect ratio
-        grid.cellGap = Vector3.zero;          // No gaps
+        grid.cellSize = new Vector3(1, 1, 0); 
+        grid.cellGap = Vector3.zero;          
 
+        // --- BACKGROUND TILEMAP (The Grid Lines) ---
+        GameObject bgTilemapObj = new GameObject("BackgroundTilemap", typeof(Tilemap), typeof(TilemapRenderer));
+        bgTilemapObj.transform.SetParent(gridObj.transform);
+        Tilemap bgTm = bgTilemapObj.GetComponent<Tilemap>();
+        TilemapRenderer bgTr = bgTilemapObj.GetComponent<TilemapRenderer>();
+        
+        bgTm.tileAnchor = Vector3.zero;
+        bgTr.sortingOrder = -1; // CRITICAL: Renders BEHIND the pieces
+        
+        // --- GAMEPLAY TILEMAP ---
         GameObject tilemapObj = new GameObject("Tilemap", typeof(Tilemap), typeof(TilemapRenderer));
         tilemapObj.transform.SetParent(gridObj.transform);
         Tilemap tm = tilemapObj.GetComponent<Tilemap>();
+        TilemapRenderer tr = tilemapObj.GetComponent<TilemapRenderer>();
         
-        // CRITICAL FIX: Set TileAnchor to Zero. 
-        // This ensures the visual tile aligns perfectly with the integer coordinates of our logic.
-        tm.tileAnchor = Vector3.zero; 
+        tm.tileAnchor = Vector3.zero;
+        tr.sortingOrder = 1; // Renders IN FRONT of grid
         
-        boardObj.GetComponent<Board>().tilemap = tm;
+        // Assign to Board
+        board.tilemap = tm;
+        board.backgroundTilemap = bgTm;
         // -----------------------------
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject hudPanel = CreatePanel(canvas.transform, "HUDPanel");
         hudPanel.GetComponent<Image>().color = Color.clear; 
 
-        GameObject scoreText = CreateText(hudPanel.transform, "ScoreText", "Score: 0", new Vector2(-300, 150), 36);
-        GameObject nextBlockText = CreateText(hudPanel.transform, "NextBlockText", "Next", new Vector2(300, 150), 36);
-        GameObject pauseBtn = CreateButton(hudPanel.transform, "PauseButton", "||", new Vector2(350, 180));
+        // Adjusted UI positions to be wider apart so they don't overlap the board
+        GameObject scoreText = CreateText(hudPanel.transform, "ScoreText", "Score: 0", new Vector2(-450, 300), 36);
+        GameObject nextBlockText = CreateText(hudPanel.transform, "NextBlockText", "Next", new Vector2(450, 300), 36);
+        GameObject pauseBtn = CreateButton(hudPanel.transform, "PauseButton", "||", new Vector2(450, 400));
         ((RectTransform)pauseBtn.transform).sizeDelta = new Vector2(50, 50);
 
         // Pause Menu
