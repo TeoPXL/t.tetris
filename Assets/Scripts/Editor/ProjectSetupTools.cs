@@ -81,29 +81,50 @@ public class ProjectSetupTools : EditorWindow
 
     private static void CreateBuilderAssets()
     {
-        // Square Texture
-        Texture2D texture = new Texture2D(32, 32);
-        Color[] pixels = new Color[32 * 32];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
+        // 1. Create a Square Sprite with correct PPU
+        int size = 32;
+        Texture2D texture = new Texture2D(size, size);
+        texture.filterMode = FilterMode.Point; // FIX: Crisp edges, no blur
+        
+        Color[] pixels = new Color[size * size];
+        // Create a distinct border to make them look like tiles
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                bool isBorder = x == 0 || y == 0 || x == size - 1 || y == size - 1;
+                pixels[y * size + x] = isBorder ? new Color(0.8f, 0.8f, 0.8f) : Color.white;
+            }
+        }
+        
         texture.SetPixels(pixels);
         texture.Apply();
         byte[] bytes = texture.EncodeToPNG();
         File.WriteAllBytes("Assets/Resources/Square.png", bytes);
         AssetDatabase.Refresh();
 
+        // FIX: Load the importer to set PPU to 32 so 32pixels = 1 Unity Unit
+        TextureImporter importer = AssetImporter.GetAtPath("Assets/Resources/Square.png") as TextureImporter;
+        if (importer != null) {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spritePixelsPerUnit = 32; // CRITICAL FIX: Matches texture size
+            importer.filterMode = FilterMode.Point;
+            importer.compressionQuality = 0;
+            importer.SaveAndReimport();
+        }
+
+        // The rest of the UI creation remains the same...
         Sprite squareSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Resources/Square.png");
 
-        // Cell Prefab
+        // 2. Create "FilledCell" Prefab
         GameObject cellObj = new GameObject("CellPrefab");
         Image img = cellObj.AddComponent<Image>();
         img.sprite = squareSprite;
         img.color = Color.cyan;
         RectTransform rect = cellObj.GetComponent<RectTransform>();
-        rect.sizeDelta = new Vector2(40, 40); // Slightly smaller for padding
+        rect.sizeDelta = new Vector2(40, 40);
         PrefabUtility.SaveAsPrefabAsset(cellObj, "Assets/Prefabs/UI/CellPrefab.prefab");
         DestroyImmediate(cellObj);
 
-        // Add Button Prefab
+        // 3. Create "AddButton" Prefab
         GameObject addObj = new GameObject("AddButtonPrefab");
         Image addImg = addObj.AddComponent<Image>();
         addImg.sprite = squareSprite;
@@ -115,9 +136,9 @@ public class ProjectSetupTools : EditorWindow
         TextMeshProUGUI tmp = textObj.AddComponent<TextMeshProUGUI>();
         tmp.text = "+";
         tmp.alignment = TextAlignmentOptions.Center;
-        tmp.fontSize = 25;
+        tmp.fontSize = 30;
         tmp.color = Color.black;
-        tmp.raycastTarget = false; 
+        tmp.raycastTarget = false;
         tmp.rectTransform.anchorMin = Vector2.zero;
         tmp.rectTransform.anchorMax = Vector2.one;
         
@@ -125,31 +146,19 @@ public class ProjectSetupTools : EditorWindow
         rect.sizeDelta = new Vector2(40, 40);
         PrefabUtility.SaveAsPrefabAsset(addObj, "Assets/Prefabs/UI/AddButtonPrefab.prefab");
         DestroyImmediate(addObj);
-
-        // Saved List Item Prefab
+        
+        // 4. Saved Item Prefab (Same as before)
         GameObject listObj = new GameObject("SavedItemPrefab");
         listObj.AddComponent<Image>().color = new Color(0.2f, 0.2f, 0.2f);
         listObj.AddComponent<LayoutElement>().minHeight = 40;
-        
-        GameObject nameTxt = CreateText(listObj.transform, "Name", "BlockName", new Vector2(0,0), 20);
-        RectTransform nameRect = nameTxt.GetComponent<RectTransform>();
-        nameRect.anchorMin = new Vector2(0, 0);
-        nameRect.anchorMax = new Vector2(0.6f, 1);
-        nameTxt.GetComponent<TextMeshProUGUI>().alignment = TextAlignmentOptions.Left;
-
-        GameObject loadBtn = CreateButton(listObj.transform, "Load", "Load", Vector2.zero);
-        RectTransform loadRect = loadBtn.GetComponent<RectTransform>();
-        loadRect.anchorMin = new Vector2(0.6f, 0);
-        loadRect.anchorMax = new Vector2(0.8f, 1);
-        loadRect.offsetMin = loadRect.offsetMax = Vector2.zero;
-
-        GameObject delBtn = CreateButton(listObj.transform, "Del", "X", Vector2.zero);
-        delBtn.GetComponent<Image>().color = Color.red;
-        RectTransform delRect = delBtn.GetComponent<RectTransform>();
-        delRect.anchorMin = new Vector2(0.8f, 0);
-        delRect.anchorMax = new Vector2(1, 1);
-        delRect.offsetMin = delRect.offsetMax = Vector2.zero;
-
+        CreateText(listObj.transform, "Name", "BlockName", Vector2.zero, 20).GetComponent<RectTransform>().anchorMax = new Vector2(0.6f, 1);
+        GameObject lBtn = CreateButton(listObj.transform, "Load", "Load", Vector2.zero);
+        ((RectTransform)lBtn.transform).anchorMin = new Vector2(0.6f, 0);
+        ((RectTransform)lBtn.transform).anchorMax = new Vector2(0.8f, 1);
+        GameObject dBtn = CreateButton(listObj.transform, "Del", "X", Vector2.zero);
+        dBtn.GetComponent<Image>().color = Color.red;
+        ((RectTransform)dBtn.transform).anchorMin = new Vector2(0.8f, 0);
+        ((RectTransform)dBtn.transform).anchorMax = new Vector2(1, 1);
         PrefabUtility.SaveAsPrefabAsset(listObj, "Assets/Prefabs/UI/SavedItemPrefab.prefab");
         DestroyImmediate(listObj);
     }
@@ -192,23 +201,35 @@ public class ProjectSetupTools : EditorWindow
         
         GameObject boardObj = new GameObject("Board");
         boardObj.AddComponent<Board>();
-        // Grid for tiles
-        GameObject grid = new GameObject("Grid", typeof(Grid));
-        grid.transform.SetParent(boardObj.transform);
-        GameObject tilemap = new GameObject("Tilemap", typeof(Tilemap), typeof(TilemapRenderer));
-        tilemap.transform.SetParent(grid.transform);
-        boardObj.GetComponent<Board>().tilemap = tilemap.GetComponent<Tilemap>();
+        
+        // --- GRID & TILEMAP FIXES ---
+        GameObject gridObj = new GameObject("Grid", typeof(Grid));
+        gridObj.transform.SetParent(boardObj.transform);
+        Grid grid = gridObj.GetComponent<Grid>();
+        grid.cellSize = new Vector3(1, 1, 0); // Force 1:1 aspect ratio
+        grid.cellGap = Vector3.zero;          // No gaps
+
+        GameObject tilemapObj = new GameObject("Tilemap", typeof(Tilemap), typeof(TilemapRenderer));
+        tilemapObj.transform.SetParent(gridObj.transform);
+        Tilemap tm = tilemapObj.GetComponent<Tilemap>();
+        
+        // CRITICAL FIX: Set TileAnchor to Zero. 
+        // This ensures the visual tile aligns perfectly with the integer coordinates of our logic.
+        tm.tileAnchor = Vector3.zero; 
+        
+        boardObj.GetComponent<Board>().tilemap = tm;
+        // -----------------------------
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject hudPanel = CreatePanel(canvas.transform, "HUDPanel");
-        hudPanel.GetComponent<Image>().color = Color.clear; // Transparent HUD overlay
+        hudPanel.GetComponent<Image>().color = Color.clear; 
 
         GameObject scoreText = CreateText(hudPanel.transform, "ScoreText", "Score: 0", new Vector2(-300, 150), 36);
         GameObject nextBlockText = CreateText(hudPanel.transform, "NextBlockText", "Next", new Vector2(300, 150), 36);
         GameObject pauseBtn = CreateButton(hudPanel.transform, "PauseButton", "||", new Vector2(350, 180));
         ((RectTransform)pauseBtn.transform).sizeDelta = new Vector2(50, 50);
 
-        // --- PAUSE MENU ---
+        // Pause Menu
         GameObject pauseMenu = CreatePanel(canvas.transform, "PauseMenu");
         pauseMenu.SetActive(false);
         CreateText(pauseMenu.transform, "Title", "PAUSED", new Vector2(0, 100), 50);
