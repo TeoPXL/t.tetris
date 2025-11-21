@@ -5,8 +5,11 @@ using System.Linq;
 public class BlockBuilder : MonoBehaviour
 {
     private HashSet<Vector2Int> activeCells = new HashSet<Vector2Int>();
-    private const int MAX_BLOCKS = 10;
+    private const int MAX_BLOCKS = 6; // Kept the limit from previous request
     private const string REGISTRY_KEY = "BLOCK_REGISTRY";
+
+    // Shared directions array for expansion and connectivity checks
+    private readonly Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
     private void Start() { ResetBuilder(); }
 
@@ -26,16 +29,80 @@ public class BlockBuilder : MonoBehaviour
 
     public void RemoveCell(Vector2Int pos)
     {
-        if (pos == Vector2Int.zero) return; // Cannot remove anchor
-        if (activeCells.Contains(pos)) activeCells.Remove(pos);
+        // We now check CanRemove before actually doing it
+        if (CanRemove(pos))
+        {
+            activeCells.Remove(pos);
+        }
     }
+
+    // --- NEW: CONNECTIVITY LOGIC ---
+
+    /// <summary>
+    /// Checks if a cell can be removed without breaking the block or removing the anchor.
+    /// </summary>
+    public bool CanRemove(Vector2Int pos)
+    {
+        // 1. Cannot remove the anchor (0,0)
+        if (pos == Vector2Int.zero) return false;
+
+        // 2. Cannot remove if it's not there
+        if (!activeCells.Contains(pos)) return false;
+
+        // 3. Run Connectivity Check
+        return IsConnectivityPreserved(pos);
+    }
+
+    private bool IsConnectivityPreserved(Vector2Int cellToRemove)
+    {
+        // Create a temporary set of what the block WOULD look like
+        HashSet<Vector2Int> remaining = new HashSet<Vector2Int>(activeCells);
+        remaining.Remove(cellToRemove);
+
+        if (remaining.Count == 0) return true; // Should not happen due to anchor check, but safe fallback
+
+        // --- FLOOD FILL ALGORITHM ---
+        
+        // 1. Pick an arbitrary start point (The anchor is always a safe bet)
+        Vector2Int startNode = Vector2Int.zero; 
+        
+        // 2. Setup traversal
+        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        
+        queue.Enqueue(startNode);
+        visited.Add(startNode);
+
+        while (queue.Count > 0)
+        {
+            Vector2Int current = queue.Dequeue();
+
+            foreach (Vector2Int dir in directions)
+            {
+                Vector2Int neighbor = current + dir;
+                
+                // If the neighbor exists in our remaining structure and we haven't visited it yet
+                if (remaining.Contains(neighbor) && !visited.Contains(neighbor))
+                {
+                    visited.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+        }
+
+        // 4. If we visited every remaining cell, the structure is still whole
+        return visited.Count == remaining.Count;
+    }
+
+    // -------------------------------
 
     public List<Vector2Int> GetActiveCells() { return activeCells.ToList(); }
 
     public List<Vector2Int> GetAvailableExpansions()
     {
+        if (activeCells.Count >= MAX_BLOCKS) return new List<Vector2Int>();
+
         HashSet<Vector2Int> candidates = new HashSet<Vector2Int>();
-        Vector2Int[] directions = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
         foreach (Vector2Int cell in activeCells)
         {
@@ -48,25 +115,16 @@ public class BlockBuilder : MonoBehaviour
         return candidates.ToList();
     }
 
-    // --- SAVING SYSTEM ---
-
+    // --- SAVING SYSTEM (Unchanged) ---
     public void SaveBlock(string name)
     {
         if (string.IsNullOrEmpty(name) || activeCells.Count == 0) return;
-
-        // Use a serializable class that mimics BlockData structure but is JSON friendly
-        // Since we don't have that, we rely on JsonUtility to handle the SO fields.
         BlockData data = ScriptableObject.CreateInstance<BlockData>();
         data.cells = activeCells.ToArray();
         data.name = name;
-        // The color is the biggest issue for JSON serialization in PlayerPrefs.
-        // We'll store the color as a separate hex string or using the SO itself.
-        // Since the requirement is to use the existing data, we rely on the SO fields being public/serialized.
-        data.color = Color.HSVToRGB(Random.value, 0.8f, 0.8f); // Random nice color
-
+        data.color = Color.HSVToRGB(Random.value, 0.8f, 0.8f); 
         string json = JsonUtility.ToJson(data);
         PlayerPrefs.SetString($"CustomBlock_{name}", json);
-        
         AddToRegistry(name);
         PlayerPrefs.Save();
     }
@@ -75,19 +133,14 @@ public class BlockBuilder : MonoBehaviour
     {
         BlockData data = GetBlockData(name);
         if (data == null) return;
-
         activeCells.Clear();
         foreach (var cell in data.cells) activeCells.Add(cell);
     }
 
-    // Retrieves data for UI previews without altering active builder state
     public BlockData GetBlockData(string name)
     {
         string json = PlayerPrefs.GetString($"CustomBlock_{name}");
         if (string.IsNullOrEmpty(json)) return null;
-
-        // CRITICAL FIX: Need a new instance for deserialization, otherwise it might overwrite an asset if it was loaded.
-        // We also rely on JsonUtility.FromJsonOverwrite to correctly set the ScriptableObject fields.
         BlockData data = ScriptableObject.CreateInstance<BlockData>();
         JsonUtility.FromJsonOverwrite(json, data);
         return data;
@@ -100,7 +153,6 @@ public class BlockBuilder : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    // Registry Management
     private void AddToRegistry(string name)
     {
         List<string> reg = GetRegistry();
@@ -125,7 +177,6 @@ public class BlockBuilder : MonoBehaviour
     {
         string raw = PlayerPrefs.GetString(REGISTRY_KEY, "");
         if (string.IsNullOrEmpty(raw)) return new List<string>();
-        // Only return non-empty strings, for robustness against double separators
         return raw.Split(new char[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries).ToList(); 
     }
 }

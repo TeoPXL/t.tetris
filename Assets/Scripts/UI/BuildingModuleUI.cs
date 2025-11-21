@@ -130,7 +130,6 @@ public class BuildingModuleUI : MonoBehaviour
 
     public void RefreshGrid()
     {
-        // Clear container
         foreach (Transform child in gridContainer) Destroy(child.gameObject);
 
         List<Vector2Int> cells = blockBuilder.GetActiveCells();
@@ -142,14 +141,28 @@ public class BuildingModuleUI : MonoBehaviour
             GameObject obj = Instantiate(cellPrefab, gridContainer);
             PositionElement(obj, pos);
             
-            Button btn = obj.AddComponent<Button>();
-            Vector2Int p = pos;
-            btn.onClick.AddListener(() => {
-                if (p != Vector2Int.zero) {
+            // CHECK: Is this specific cell removable?
+            if (blockBuilder.CanRemove(pos))
+            {
+                Button btn = obj.AddComponent<Button>();
+                Vector2Int p = pos;
+                btn.onClick.AddListener(() => {
                     blockBuilder.RemoveCell(p);
                     RefreshGrid();
-                }
-            });
+                });
+
+                // Optional: Add a visual hint that this is deletable
+                // e.g., slightly red tint, or overlay an "X" icon
+                Image img = obj.GetComponent<Image>();
+                if(img) img.color = new Color(1f, 0.9f, 0.9f); // Slight Red tint
+            }
+            else
+            {
+                // If not removable (Anchor or Structural), do not add Button component.
+                // Just let it exist as a visual block.
+                Image img = obj.GetComponent<Image>();
+                if(img) img.color = Color.white; // Normal color
+            }
         }
 
         // Draw Expansion Buttons
