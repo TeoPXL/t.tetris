@@ -86,10 +86,30 @@ public class GameHUD : MonoBehaviour
 
     private void SubmitScore()
     {
+        // 1. Safety Check: Is the UI Input Field linked?
+        if (nameInputField == null)
+        {
+            Debug.LogError("GameHUD: 'nameInputField' is not assigned in the Inspector!");
+            return;
+        }
+
         string playerName = nameInputField.text;
         if (string.IsNullOrEmpty(playerName)) playerName = "Player";
+
+        // 2. Safety Check: Does the ScoreBoard exist?
+        if (ScoreBoard.Instance == null)
+        {
+            Debug.LogError("GameHUD: ScoreBoard.Instance is NULL. The ScoreBoard GameObject is missing from the scene.");
+            // Force return to menu so the player isn't stuck
+            if (GameManager.Instance != null) GameManager.Instance.LoadScene("MainMenu");
+            return;
+        }
+
+        // Safe to execute
         ScoreBoard.Instance.AddScore(playerName, currentScore);
-        GameManager.Instance.LoadScene("MainMenu");
+        
+        if (GameManager.Instance != null)
+            GameManager.Instance.LoadScene("MainMenu");
     }
 
     private void PauseGame()

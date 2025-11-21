@@ -212,6 +212,7 @@ public class ProjectSetupTools : EditorWindow
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
+        EnsureScoreBoard();
 
         GameObject canvas = CreateCanvas("Canvas");
         GameObject panel = CreatePanel(canvas.transform, "MenuPanel");
@@ -257,6 +258,7 @@ public class ProjectSetupTools : EditorWindow
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
+        EnsureScoreBoard();
 
         // 1. Board & Environment
         GameObject boardObj = new GameObject("Board");
@@ -806,6 +808,12 @@ public class ProjectSetupTools : EditorWindow
         {
             GameObject eventSystem = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
         }
+    }
+
+    private static void EnsureScoreBoard() 
+    { 
+        if(Object.FindObjectOfType<ScoreBoard>() == null) 
+            new GameObject("ScoreBoard").AddComponent<ScoreBoard>(); 
     }
     
     private static void EnsureGameManager() { if(Object.FindObjectOfType<GameManager>() == null) new GameObject("GameManager").AddComponent<GameManager>(); }
