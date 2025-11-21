@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using System.Collections;
+using System; // Added System for Action
 
 public class BuildingModuleUI : MonoBehaviour
 {
@@ -13,9 +15,10 @@ public class BuildingModuleUI : MonoBehaviour
     public Transform gridContainer;
     public Transform savedListContent;
 
+    [Header("Prefabs")]
     public GameObject cellPrefab;
     public GameObject addButtonPrefab;
-    public GameObject savedItemPrefab;
+    public GameObject savedItemPrefab; // Must have SavedBlockItem component
 
     private float cellSize = 40f;
 
@@ -27,6 +30,13 @@ public class BuildingModuleUI : MonoBehaviour
         saveButton.onClick.AddListener(OnSave);
         clearButton.onClick.AddListener(OnClear);
         backButton.onClick.AddListener(() => GameManager.Instance.LoadScene("MainMenu"));
+
+        // FIX: Force input alignment
+        if (blockNameInput.textComponent != null)
+        {
+            // Center the actual input text within the field
+            blockNameInput.textComponent.alignment = TextAlignmentOptions.Center; 
+        }
 
         OnClear(); // Initial Draw
         RefreshSavedList();
@@ -53,9 +63,10 @@ public class BuildingModuleUI : MonoBehaviour
         if (titleText != null) titleText.text = LocalizationManager.Instance.GetText("block_builder");
         if (savedListTitleText != null) savedListTitleText.text = LocalizationManager.Instance.GetText("saved_blocks");
         
-        SetButtonText(saveButton, "save");
         SetButtonText(clearButton, "reset");
         SetButtonText(backButton, "back");
+        // Save button text is handled dynamically in OnSave, but we set default here
+        SetButtonText(saveButton, "save");
     }
 
     private void SetButtonText(Button btn, string key)
@@ -75,11 +86,45 @@ public class BuildingModuleUI : MonoBehaviour
         blockBuilder.SaveBlock(name);
         blockNameInput.text = "";
         RefreshSavedList();
+
+        // Visual Feedback
+        StartCoroutine(SaveButtonFeedback());
+    }
+
+    private IEnumerator SaveButtonFeedback()
+    {
+        TextMeshProUGUI btnText = saveButton.GetComponentInChildren<TextMeshProUGUI>();
+        // Ensure text component is found
+        if (btnText == null) yield break; 
+        
+        // Use localization for feedback if possible
+        string originalKey = (LocalizationManager.Instance != null) ? "save" : "Save";
+        string savedText = (LocalizationManager.Instance != null) ? LocalizationManager.Instance.GetText("saved_feedback") : "Saved!";
+        
+        string originalText = btnText.text;
+        
+        btnText.text = savedText;
+        saveButton.interactable = false;
+
+        yield return new WaitForSeconds(1.0f);
+
+        // Restore original text, possibly localized
+        if (LocalizationManager.Instance != null)
+        {
+             btnText.text = LocalizationManager.Instance.GetText(originalKey);
+        }
+        else
+        {
+            btnText.text = originalText;
+        }
+
+        saveButton.interactable = true;
     }
 
     private void OnClear()
     {
         blockBuilder.ResetBuilder();
+        blockNameInput.text = ""; // Also clear name input on reset
         RefreshGrid();
     }
 
@@ -128,33 +173,47 @@ public class BuildingModuleUI : MonoBehaviour
         rect.anchoredPosition = new Vector2(gridPos.x * cellSize, gridPos.y * cellSize);
     }
 
-    private void RefreshSavedList()
+    public void RefreshSavedList()
     {
         foreach (Transform child in savedListContent) Destroy(child.gameObject);
+
+        // Pre-fetch the sprite from the cellPrefab for previews
+        Sprite cellSprite = null;
+        if (cellPrefab != null)
+        {
+            Image sourceImg = cellPrefab.GetComponent<Image>();
+            if (sourceImg != null) cellSprite = sourceImg.sprite;
+        }
 
         List<string> savedNames = blockBuilder.GetRegistry();
         foreach (string name in savedNames)
         {
-            GameObject item = Instantiate(savedItemPrefab, savedListContent);
-            
-            // Find components by hierarchy order (assumed from SetupTools)
-            TextMeshProUGUI txt = item.transform.GetChild(0).GetComponent<TextMeshProUGUI>();
-            Button loadBtn = item.transform.GetChild(1).GetComponent<Button>();
-            Button delBtn = item.transform.GetChild(2).GetComponent<Button>();
+            BlockData data = blockBuilder.GetBlockData(name);
+            if (data == null) continue;
 
-            txt.text = name;
+            GameObject itemObj = Instantiate(savedItemPrefab, savedListContent);
+            SavedBlockItem itemComp = itemObj.GetComponent<SavedBlockItem>();
             
-            string n = name;
-            loadBtn.onClick.AddListener(() => {
-                blockBuilder.LoadBlockToBuilder(n);
-                blockNameInput.text = n;
-                RefreshGrid();
-            });
+            if (itemComp != null)
+            {
+                // Ensure the sprite is assigned for the preview drawing logic
+                if (itemComp.pixelSprite == null) itemComp.pixelSprite = cellSprite;
 
-            delBtn.onClick.AddListener(() => {
-                blockBuilder.DeleteBlock(n);
-                RefreshSavedList();
-            });
+                itemComp.Setup(name, data, LoadBlock, DeleteBlock);
+            }
         }
+    }
+
+    private void LoadBlock(string name)
+    {
+        blockBuilder.LoadBlockToBuilder(name);
+        blockNameInput.text = name;
+        RefreshGrid();
+    }
+
+    private void DeleteBlock(string name)
+    {
+        blockBuilder.DeleteBlock(name);
+        RefreshSavedList();
     }
 }

@@ -54,9 +54,14 @@ public class BlockBuilder : MonoBehaviour
     {
         if (string.IsNullOrEmpty(name) || activeCells.Count == 0) return;
 
+        // Use a serializable class that mimics BlockData structure but is JSON friendly
+        // Since we don't have that, we rely on JsonUtility to handle the SO fields.
         BlockData data = ScriptableObject.CreateInstance<BlockData>();
         data.cells = activeCells.ToArray();
         data.name = name;
+        // The color is the biggest issue for JSON serialization in PlayerPrefs.
+        // We'll store the color as a separate hex string or using the SO itself.
+        // Since the requirement is to use the existing data, we rely on the SO fields being public/serialized.
         data.color = Color.HSVToRGB(Random.value, 0.8f, 0.8f); // Random nice color
 
         string json = JsonUtility.ToJson(data);
@@ -68,23 +73,34 @@ public class BlockBuilder : MonoBehaviour
 
     public void LoadBlockToBuilder(string name)
     {
-        string json = PlayerPrefs.GetString($"CustomBlock_{name}");
-        if (string.IsNullOrEmpty(json)) return;
-
-        BlockData data = ScriptableObject.CreateInstance<BlockData>();
-        JsonUtility.FromJsonOverwrite(json, data);
+        BlockData data = GetBlockData(name);
+        if (data == null) return;
 
         activeCells.Clear();
         foreach (var cell in data.cells) activeCells.Add(cell);
+    }
+
+    // Retrieves data for UI previews without altering active builder state
+    public BlockData GetBlockData(string name)
+    {
+        string json = PlayerPrefs.GetString($"CustomBlock_{name}");
+        if (string.IsNullOrEmpty(json)) return null;
+
+        // CRITICAL FIX: Need a new instance for deserialization, otherwise it might overwrite an asset if it was loaded.
+        // We also rely on JsonUtility.FromJsonOverwrite to correctly set the ScriptableObject fields.
+        BlockData data = ScriptableObject.CreateInstance<BlockData>();
+        JsonUtility.FromJsonOverwrite(json, data);
+        return data;
     }
 
     public void DeleteBlock(string name)
     {
         PlayerPrefs.DeleteKey($"CustomBlock_{name}");
         RemoveFromRegistry(name);
+        PlayerPrefs.Save();
     }
 
-    // Registry Management to know WHAT we have saved
+    // Registry Management
     private void AddToRegistry(string name)
     {
         List<string> reg = GetRegistry();
@@ -109,6 +125,7 @@ public class BlockBuilder : MonoBehaviour
     {
         string raw = PlayerPrefs.GetString(REGISTRY_KEY, "");
         if (string.IsNullOrEmpty(raw)) return new List<string>();
-        return raw.Split(';').ToList();
+        // Only return non-empty strings, for robustness against double separators
+        return raw.Split(new char[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries).ToList(); 
     }
 }
