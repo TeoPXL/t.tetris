@@ -5,41 +5,49 @@ using System.Collections.Generic;
 
 public class GameHUD : MonoBehaviour
 {
+    [Header("References")]
+    public GameObject cellPrefab; // Needs to be assigned by SetupTools
+
     [Header("HUD Elements")]
     public TextMeshProUGUI scoreText;
-    public TextMeshProUGUI nextBlockText; // Placeholder for now
-    public Button pauseButton;
+    public TextMeshProUGUI levelText; // Optional polish
+    
+    [Header("Panels")]
     public GameObject pauseMenuPanel;
+    public GameObject gameOverPanel;
+
+    [Header("Buttons")]
+    public Button pauseButton;
     public Button resumeButton;
     public Button optionsButton;
     public Button quitButton;
-
-    [Header("Game Over")]
-    public GameObject gameOverPanel;
+    
+    [Header("Game Over Elements")]
     public TextMeshProUGUI finalScoreText;
     public Button restartButton;
     public Button menuButton;
     public TMP_InputField nameInputField;
     public Button submitScoreButton;
 
-    [Header("Hold & Next")]
-    public Image holdImage;
-    public List<Image> nextImages; // Assign 3 images in Inspector
+    [Header("Hold & Next Containers")]
+    public RectTransform holdContainer;
+    public List<RectTransform> nextContainers; 
 
     private int currentScore = 0;
 
     private void Start()
     {
-        if (pauseButton != null) pauseButton.onClick.AddListener(PauseGame);
-        if (resumeButton != null) resumeButton.onClick.AddListener(ResumeGame);
-        if (optionsButton != null) optionsButton.onClick.AddListener(() => GameManager.Instance.LoadScene("OptionsScene"));
-        if (quitButton != null) quitButton.onClick.AddListener(() => GameManager.Instance.LoadScene("MainMenu"));
+        // Button Listeners
+        if (pauseButton) pauseButton.onClick.AddListener(PauseGame);
+        if (resumeButton) resumeButton.onClick.AddListener(ResumeGame);
+        if (optionsButton) optionsButton.onClick.AddListener(() => GameManager.Instance.LoadScene("OptionsScene"));
+        if (quitButton) quitButton.onClick.AddListener(() => GameManager.Instance.LoadScene("MainMenu"));
+        if (restartButton) restartButton.onClick.AddListener(() => GameManager.Instance.LoadScene("GameScene"));
+        if (menuButton) menuButton.onClick.AddListener(() => GameManager.Instance.LoadScene("MainMenu"));
+        if (submitScoreButton) submitScoreButton.onClick.AddListener(SubmitScore);
         
-        if (restartButton != null) restartButton.onClick.AddListener(() => GameManager.Instance.LoadScene("GameScene"));
-        if (menuButton != null) menuButton.onClick.AddListener(() => GameManager.Instance.LoadScene("MainMenu"));
-        if (submitScoreButton != null) submitScoreButton.onClick.AddListener(SubmitScore);
-        
-        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        if (gameOverPanel) gameOverPanel.SetActive(false);
+        if (pauseMenuPanel) pauseMenuPanel.SetActive(false);
 
         if (LocalizationManager.Instance != null)
         {
@@ -51,60 +59,28 @@ public class GameHUD : MonoBehaviour
     private void OnDestroy()
     {
         if (LocalizationManager.Instance != null)
-        {
             LocalizationManager.Instance.OnLanguageChanged -= UpdateUITexts;
-        }
     }
 
     private void UpdateUITexts()
     {
         if (LocalizationManager.Instance == null) return;
-
-        UpdateScore(currentScore); // Refresh score text
-        
-        if (nextBlockText != null) nextBlockText.text = LocalizationManager.Instance.GetText("next");
-        
-        SetButtonText(resumeButton, "resume");
-        SetButtonText(optionsButton, "options");
-        SetButtonText(quitButton, "main_menu");
-        
-        SetButtonText(restartButton, "restart");
-        SetButtonText(menuButton, "main_menu");
-        SetButtonText(submitScoreButton, "submit");
-        
-        // Update Game Over Title if accessible, or other static texts
-        // Since we don't have direct references to titles (Paused, Game Over), we might miss them.
-        // But buttons and score are covered.
-    }
-
-    private void SetButtonText(Button btn, string key)
-    {
-        if (btn != null)
-        {
-            TextMeshProUGUI txt = btn.GetComponentInChildren<TextMeshProUGUI>();
-            if (txt != null) txt.text = LocalizationManager.Instance.GetText(key);
-        }
+        UpdateScore(currentScore);
+        // Update static button texts here if localization keys exist
     }
 
     public void UpdateScore(int score)
     {
         currentScore = score;
-        if (scoreText != null && LocalizationManager.Instance != null)
-        {
-            scoreText.text = $"{LocalizationManager.Instance.GetText("score")}: {score}";
-        }
+        if (scoreText != null) scoreText.text = $"{score}";
     }
 
     public void ShowGameOver(int score)
     {
-        GameManager.Instance.SetState(GameManager.GameState.GameOver);
         if (gameOverPanel != null)
         {
             gameOverPanel.SetActive(true);
-            if (finalScoreText != null && LocalizationManager.Instance != null)
-            {
-                finalScoreText.text = $"{LocalizationManager.Instance.GetText("final_score")}{score}";
-            }
+            if (finalScoreText != null) finalScoreText.text = $"Final Score: {score}";
         }
     }
 
@@ -112,56 +88,8 @@ public class GameHUD : MonoBehaviour
     {
         string playerName = nameInputField.text;
         if (string.IsNullOrEmpty(playerName)) playerName = "Player";
-        
-        // We need to get the score from somewhere. 
-        // Ideally, GameHUD should track it or get it from Board.
-        // For now, let's assume we can access it via the text or pass it in.
-        // A better way is to have a reference to the Board or store score locally.
-        // Let's parse it from the text for this quick implementation or fix Board to pass it.
-        // Actually, let's just grab it from the Board instance if possible.
-        Board board = FindObjectOfType<Board>();
-        if (board != null)
-        {
-            ScoreBoard.Instance.AddScore(playerName, board.score);
-        }
-        
+        ScoreBoard.Instance.AddScore(playerName, currentScore);
         GameManager.Instance.LoadScene("MainMenu");
-    }
-
-    public void UpdateHold(BlockData data)
-    {
-        if (holdImage == null) return;
-        if (data == null)
-        {
-            holdImage.sprite = null;
-            holdImage.color = Color.clear;
-            return;
-        }
-        
-        // Just show a simple square with color for now, or generate a preview sprite
-        // Generating a preview sprite at runtime is complex. 
-        // We will just set the color of the image to the block's color.
-        holdImage.sprite = Resources.Load<Sprite>("Square");
-        holdImage.color = data.color;
-    }
-
-    public void UpdateNext(System.Collections.Generic.List<BlockData> nextBlocks)
-    {
-        if (nextImages == null) return;
-
-        for (int i = 0; i < nextImages.Count; i++)
-        {
-            if (i < nextBlocks.Count)
-            {
-                nextImages[i].sprite = Resources.Load<Sprite>("Square");
-                nextImages[i].color = nextBlocks[i].color;
-                nextImages[i].gameObject.SetActive(true);
-            }
-            else
-            {
-                nextImages[i].gameObject.SetActive(false);
-            }
-        }
     }
 
     private void PauseGame()
@@ -174,5 +102,83 @@ public class GameHUD : MonoBehaviour
     {
         GameManager.Instance.SetState(GameManager.GameState.Playing);
         pauseMenuPanel.SetActive(false);
+    }
+
+    // --- PREVIEW LOGIC ---
+
+    public void UpdateHold(BlockData data)
+    {
+        RenderBlockInContainer(holdContainer, data);
+    }
+
+    public void UpdateNext(List<BlockData> nextBlocks)
+    {
+        for (int i = 0; i < nextContainers.Count; i++)
+        {
+            if (i < nextBlocks.Count)
+                RenderBlockInContainer(nextContainers[i], nextBlocks[i]);
+            else
+                RenderBlockInContainer(nextContainers[i], null);
+        }
+    }
+
+    private void RenderBlockInContainer(RectTransform container, BlockData data)
+    {
+        if (container == null) return;
+
+        // 1. Clear existing cells
+        foreach (Transform child in container) Destroy(child.gameObject);
+
+        if (data == null || data.cells == null) return;
+
+        // 2. Calculate centering logic
+        // We want to fit the block into the container (approx 80x80 or 100x100)
+        float containerSize = container.rect.width;
+        float cellSize = 20f; // Smaller cells for UI
+        
+        // Find bounds of the block
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minY = float.MaxValue, maxY = float.MinValue;
+
+        foreach (var cell in data.cells)
+        {
+            if (cell.x < minX) minX = cell.x;
+            if (cell.x > maxX) maxX = cell.x;
+            if (cell.y < minY) minY = cell.y;
+            if (cell.y > maxY) maxY = cell.y;
+        }
+
+        float blockWidth = (maxX - minX + 1) * cellSize;
+        float blockHeight = (maxY - minY + 1) * cellSize;
+
+        // Calculate offset to center the block
+        Vector2 centerOffset = new Vector2(
+            (containerSize - blockWidth) / 2f - (minX * cellSize),
+            (containerSize - blockHeight) / 2f - (minY * cellSize)
+        );
+
+        // 3. Instantiate Cells
+        foreach (var cell in data.cells)
+        {
+            GameObject uiCell = Instantiate(cellPrefab, container);
+            RectTransform rt = uiCell.GetComponent<RectTransform>();
+            
+            // Set size
+            rt.sizeDelta = new Vector2(cellSize, cellSize);
+            
+            // Position (Anchor bottom-left of container)
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.zero;
+            rt.pivot = Vector2.zero;
+            
+            float posX = centerOffset.x + (cell.x * cellSize);
+            float posY = centerOffset.y + (cell.y * cellSize);
+            
+            rt.anchoredPosition = new Vector2(posX, posY);
+
+            // Set Color
+            Image img = uiCell.GetComponent<Image>();
+            img.color = data.color;
+        }
     }
 }

@@ -257,153 +257,209 @@ public class ProjectSetupTools : EditorWindow
         EnsureCamera();
         EnsureEventSystem();
         EnsureGameManager();
-        
+
+        // 1. Board & Environment
         GameObject boardObj = new GameObject("Board");
         Board board = boardObj.AddComponent<Board>();
-        
-        // --- GRID CONTAINER ---
+
         GameObject gridObj = new GameObject("Grid", typeof(Grid));
         gridObj.transform.SetParent(boardObj.transform);
         Grid grid = gridObj.GetComponent<Grid>();
-        grid.cellSize = new Vector3(1, 1, 0); 
-        grid.cellGap = Vector3.zero;          
+        grid.cellSize = new Vector3(1, 1, 0);
 
-        // --- BACKGROUND TILEMAP ---
+        // Background Grid (Visuals)
         GameObject bgTilemapObj = new GameObject("BackgroundTilemap", typeof(Tilemap), typeof(TilemapRenderer));
         bgTilemapObj.transform.SetParent(gridObj.transform);
         Tilemap bgTm = bgTilemapObj.GetComponent<Tilemap>();
         TilemapRenderer bgTr = bgTilemapObj.GetComponent<TilemapRenderer>();
         bgTm.tileAnchor = Vector3.zero;
-        bgTr.sortingOrder = -1; 
-        
-        // --- GAMEPLAY TILEMAP ---
+        bgTr.sortingOrder = -1;
+        // Darken the background tiles
+        bgTilemapObj.GetComponent<TilemapRenderer>().material.color = new Color(0.5f, 0.5f, 0.5f);
+
+        // Active Piece Tilemap
         GameObject tilemapObj = new GameObject("Tilemap", typeof(Tilemap), typeof(TilemapRenderer));
         tilemapObj.transform.SetParent(gridObj.transform);
         Tilemap tm = tilemapObj.GetComponent<Tilemap>();
         TilemapRenderer tr = tilemapObj.GetComponent<TilemapRenderer>();
         tm.tileAnchor = Vector3.zero;
-        tr.sortingOrder = 1; 
-        
+        tr.sortingOrder = 1;
+
         board.tilemap = tm;
         board.backgroundTilemap = bgTm;
 
+        // 2. Main UI Canvas
         GameObject canvas = CreateCanvas("Canvas");
-        GameObject hudPanel = CreatePanel(canvas.transform, "HUDPanel");
-        hudPanel.GetComponent<Image>().color = Color.clear; 
+        
+        // --- LAYOUT STRUCTURE ---
+        // We use a horizontal layout group to split the screen into 3 columns: 
+        // Left (Hold/Controls), Center (Game View), Right (Score/Next)
+        
+        GameObject layoutRoot = new GameObject("LayoutRoot", typeof(RectTransform));
+        layoutRoot.transform.SetParent(canvas.transform, false);
+        RectTransform rootRect = layoutRoot.GetComponent<RectTransform>();
+        rootRect.anchorMin = Vector2.zero;
+        rootRect.anchorMax = Vector2.one;
+        rootRect.offsetMin = Vector2.zero;
+        rootRect.offsetMax = Vector2.zero;
 
-        // Static UI: Score, Next, Hold Labels
-        GameObject scoreText = CreateText(hudPanel.transform, "ScoreText", "Score: 0", new Vector2(-450, 300), 36);
-        scoreText.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
-        scoreText.GetComponent<RectTransform>().anchoredPosition = new Vector2(-450, 300);
+        // LEFT PANEL (Hold & Controls)
+        GameObject leftPanel = CreatePanel(layoutRoot.transform, "LeftPanel");
+        leftPanel.GetComponent<Image>().color = Color.clear; // Transparent
+        RectTransform leftRect = leftPanel.GetComponent<RectTransform>();
+        leftRect.anchorMin = new Vector2(0, 0);
+        leftRect.anchorMax = new Vector2(0.25f, 1); // 25% width
+        leftRect.offsetMin = new Vector2(20, 20); // Padding
+        leftRect.offsetMax = new Vector2(0, -20);
 
-        GameObject nextBlockText = CreateText(hudPanel.transform, "NextBlockText", "Next", new Vector2(450, 300), 36);
-        nextBlockText.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
-        nextBlockText.GetComponent<RectTransform>().anchoredPosition = new Vector2(450, 300);
+        // RIGHT PANEL (Score & Next)
+        GameObject rightPanel = CreatePanel(layoutRoot.transform, "RightPanel");
+        rightPanel.GetComponent<Image>().color = Color.clear;
+        RectTransform rightRect = rightPanel.GetComponent<RectTransform>();
+        rightRect.anchorMin = new Vector2(0.75f, 0); // Starts at 75%
+        rightRect.anchorMax = new Vector2(1, 1);
+        rightRect.offsetMin = new Vector2(0, 20);
+        rightRect.offsetMax = new Vector2(-20, -20);
 
-        GameObject pauseBtn = CreateButton(hudPanel.transform, "PauseButton", "||", new Vector2(450, 400));
-        ((RectTransform)pauseBtn.transform).sizeDelta = new Vector2(50, 50);
-        ((RectTransform)pauseBtn.transform).anchoredPosition = new Vector2(450, 400);
+        // --- LEFT SIDE CONTENT ---
+        
+        // HOLD Section
+        GameObject holdLabel = CreateText(leftPanel.transform, "HoldLabel", "HOLD", new Vector2(0, 350), 28);
+        holdLabel.GetComponent<RectTransform>().anchorMin = new Vector2(0.5f, 0.8f);
+        holdLabel.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.8f);
+        holdLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 0);
 
+        GameObject holdContainerObj = CreateUIContainer(leftPanel.transform, "HoldContainer", new Vector2(0, -60), 100);
+        holdContainerObj.GetComponent<RectTransform>().anchorMin = new Vector2(0.5f, 0.8f);
+        holdContainerObj.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.8f);
+
+        // CONTROLS Section
+        GameObject controlsHeader = CreateText(leftPanel.transform, "ControlsHeader", "CONTROLS", Vector2.zero, 22);
+        RectTransform chRect = controlsHeader.GetComponent<RectTransform>();
+        chRect.anchorMin = new Vector2(0.5f, 0.4f);
+        chRect.anchorMax = new Vector2(0.5f, 0.4f);
+        chRect.anchoredPosition = new Vector2(0, 0);
+
+        string controlsStr = "Move: Arrows\nRotate: Up / W\nHold: Shift / C\nDrop: Space\nPause: Esc";
+        GameObject controlsText = CreateText(leftPanel.transform, "ControlsList", controlsStr, Vector2.zero, 18);
+        TextMeshProUGUI ctTMP = controlsText.GetComponent<TextMeshProUGUI>();
+        ctTMP.alignment = TextAlignmentOptions.TopLeft;
+        ctTMP.lineSpacing = 10;
+        RectTransform ctRect = controlsText.GetComponent<RectTransform>();
+        ctRect.sizeDelta = new Vector2(200, 200);
+        ctRect.anchorMin = new Vector2(0.5f, 0.4f);
+        ctRect.anchorMax = new Vector2(0.5f, 0.4f);
+        ctRect.anchoredPosition = new Vector2(0, -120);
+
+        // --- RIGHT SIDE CONTENT ---
+
+        // SCORE Section
+        GameObject scoreLabel = CreateText(rightPanel.transform, "ScoreLabel", "SCORE", Vector2.zero, 28);
+        scoreLabel.GetComponent<RectTransform>().anchorMin = new Vector2(0.5f, 0.85f);
+        scoreLabel.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.85f);
+        scoreLabel.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+
+        GameObject scoreValue = CreateText(rightPanel.transform, "ScoreValue", "0", Vector2.zero, 40);
+        scoreValue.GetComponent<TextMeshProUGUI>().fontStyle = FontStyles.Bold;
+        scoreValue.GetComponent<RectTransform>().anchorMin = new Vector2(0.5f, 0.8f);
+        scoreValue.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.8f);
+        scoreValue.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -10);
+
+        // NEXT Section
+        GameObject nextLabel = CreateText(rightPanel.transform, "NextLabel", "NEXT", Vector2.zero, 28);
+        nextLabel.GetComponent<RectTransform>().anchorMin = new Vector2(0.5f, 0.6f);
+        nextLabel.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.6f);
+        nextLabel.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+
+        List<RectTransform> nextContainers = new List<RectTransform>();
+        for (int i = 0; i < 3; i++)
+        {
+            GameObject nextCont = CreateUIContainer(rightPanel.transform, $"Next_{i}", Vector2.zero, 80);
+            RectTransform nr = nextCont.GetComponent<RectTransform>();
+            nr.anchorMin = new Vector2(0.5f, 0.6f);
+            nr.anchorMax = new Vector2(0.5f, 0.6f);
+            nr.anchoredPosition = new Vector2(0, -70 - (i * 90));
+            nextContainers.Add(nr);
+        }
+
+        // PAUSE BUTTON (Top Right Corner of Canvas)
+        GameObject pauseBtn = CreateButton(canvas.transform, "PauseButton", "||", new Vector2(-40, -40));
+        RectTransform pbRect = pauseBtn.GetComponent<RectTransform>();
+        pbRect.anchorMin = Vector2.one;
+        pbRect.anchorMax = Vector2.one;
+        pbRect.anchoredPosition = new Vector2(-50, -50);
+        pbRect.sizeDelta = new Vector2(50, 50);
+
+
+        // --- OVERLAY PANELS (Pause & Game Over) ---
+        
         // Pause Menu
         GameObject pauseMenu = CreatePanel(canvas.transform, "PauseMenu");
         pauseMenu.SetActive(false);
+        CreateText(pauseMenu.transform, "Title", "PAUSED", new Vector2(0, 100), 50);
+        GameObject resumeBtn = CreateButton(pauseMenu.transform, "Resume", "Resume", new Vector2(0, 20));
+        GameObject pOptBtn = CreateButton(pauseMenu.transform, "Options", "Options", new Vector2(0, -40));
+        GameObject pQuitBtn = CreateButton(pauseMenu.transform, "Quit", "Main Menu", new Vector2(0, -100));
 
-        GameObject pauseTitle = CreateText(pauseMenu.transform, "Title", "PAUSED", new Vector2(0, 100), 50);
-        pauseTitle.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
-        pauseTitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 100);
-
-        GameObject resumeBtn = CreateButton(pauseMenu.transform, "ResumeButton", "Resume", new Vector2(0, 20));
-        resumeBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(160, 40);
-        resumeBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 20);
-
-        GameObject optionsBtn = CreateButton(pauseMenu.transform, "OptionsButton", "Options", new Vector2(0, -40));
-        optionsBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(160, 40);
-        optionsBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -40);
-
-        GameObject quitBtn = CreateButton(pauseMenu.transform, "QuitButton", "Main Menu", new Vector2(0, -100));
-        quitBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(160, 40);
-        quitBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -100);
-
-        // Hold Block UI
-        GameObject holdLabel = CreateText(hudPanel.transform, "HoldLabel", "Hold", new Vector2(-450, 100), 24);
-        holdLabel.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
-        holdLabel.GetComponent<RectTransform>().anchoredPosition = new Vector2(-450, 100);
-
-        GameObject holdObj = new GameObject("HoldImage", typeof(Image));
-        holdObj.transform.SetParent(hudPanel.transform, false);
-        holdObj.GetComponent<Image>().color = Color.clear;
-        RectTransform holdRect = holdObj.GetComponent<RectTransform>();
-        holdRect.anchorMin = new Vector2(0.5f, 0.5f);
-        holdRect.anchorMax = new Vector2(0.5f, 0.5f);
-        holdRect.anchoredPosition = new Vector2(-450, 0);
-        holdRect.sizeDelta = new Vector2(80, 80);
-
-        // Next Blocks UI
-        List<Image> nextImages = new List<Image>();
-        for (int i = 0; i < 3; i++)
-        {
-            GameObject nextObj = new GameObject($"NextImage_{i}", typeof(Image));
-            nextObj.transform.SetParent(hudPanel.transform, false);
-            nextObj.GetComponent<Image>().color = Color.clear; 
-            RectTransform nextRect = nextObj.GetComponent<RectTransform>();
-            nextRect.anchorMin = new Vector2(0.5f, 0.5f);
-            nextRect.anchorMax = new Vector2(0.5f, 0.5f);
-            nextRect.anchoredPosition = new Vector2(450, 200 - (i * 100));
-            nextRect.sizeDelta = new Vector2(60, 60);
-            nextImages.Add(nextObj.GetComponent<Image>());
-        }
-
-        // Game Over Panel
-        GameObject gameOverPanel = CreatePanel(canvas.transform, "GameOverPanel");
-        gameOverPanel.SetActive(false);
-
-        GameObject goTitle = CreateText(gameOverPanel.transform, "GameOverTitle", "GAME OVER", new Vector2(0, 150), 60);
-        goTitle.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
-        goTitle.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 150);
-
-        GameObject finalScoreObj = CreateText(gameOverPanel.transform, "FinalScore", "Final Score: 0", new Vector2(0, 50), 36);
-        finalScoreObj.GetComponent<RectTransform>().sizeDelta = new Vector2(400, 100);
-        finalScoreObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, 50);
+        // Game Over
+        GameObject gameOverMenu = CreatePanel(canvas.transform, "GameOverPanel");
+        gameOverMenu.SetActive(false);
+        CreateText(gameOverMenu.transform, "Title", "GAME OVER", new Vector2(0, 150), 60);
+        GameObject finalScoreText = CreateText(gameOverMenu.transform, "FinalScore", "0", new Vector2(0, 50), 36);
         
-        GameObject nameInputObj = CreateInputField(gameOverPanel.transform, "NameInput", new Vector2(0, -20));
-        nameInputObj.GetComponent<RectTransform>().anchoredPosition = new Vector2(0, -20);
-        nameInputObj.GetComponent<RectTransform>().sizeDelta = new Vector2(200, 40);
-
-
-        GameObject submitBtn = CreateButton(gameOverPanel.transform, "SubmitButton", "Submit", new Vector2(150, -20));
+        GameObject nameInput = CreateInputField(gameOverMenu.transform, "NameInput", new Vector2(0, -20));
+        GameObject submitBtn = CreateButton(gameOverMenu.transform, "Submit", "Submit", new Vector2(150, -20));
         ((RectTransform)submitBtn.transform).sizeDelta = new Vector2(100, 40);
-        ((RectTransform)submitBtn.transform).anchoredPosition = new Vector2(150, -20);
+        
+        GameObject restartBtn = CreateButton(gameOverMenu.transform, "Restart", "Try Again", new Vector2(-100, -100));
+        GameObject goMenuBtn = CreateButton(gameOverMenu.transform, "Menu", "Main Menu", new Vector2(100, -100));
 
-        GameObject restartBtn = CreateButton(gameOverPanel.transform, "RestartButton", "Restart", new Vector2(-100, -100));
-        restartBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(160, 40);
-        restartBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(-100, -100);
-
-        GameObject menuBtn = CreateButton(gameOverPanel.transform, "MenuButton", "Main Menu", new Vector2(100, -100));
-        menuBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(160, 40);
-        menuBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(100, -100);
-
+        // --- SETUP HUD COMPONENT ---
         GameObject hudObj = new GameObject("GameHUD");
         GameHUD hud = hudObj.AddComponent<GameHUD>();
-        hud.scoreText = scoreText.GetComponent<TextMeshProUGUI>();
-        hud.nextBlockText = nextBlockText.GetComponent<TextMeshProUGUI>();
+        
+        // Assign UI
+        hud.scoreText = scoreValue.GetComponent<TextMeshProUGUI>();
+        hud.holdContainer = holdContainerObj.GetComponent<RectTransform>();
+        hud.nextContainers = nextContainers;
+        
         hud.pauseButton = pauseBtn.GetComponent<Button>();
         hud.pauseMenuPanel = pauseMenu;
         hud.resumeButton = resumeBtn.GetComponent<Button>();
-        hud.optionsButton = optionsBtn.GetComponent<Button>();
-        hud.quitButton = quitBtn.GetComponent<Button>();
-        
-        hud.holdImage = holdObj.GetComponent<Image>();
-        hud.nextImages = nextImages;
-        
-        hud.gameOverPanel = gameOverPanel;
-        hud.finalScoreText = finalScoreObj.GetComponent<TextMeshProUGUI>();
-        hud.nameInputField = nameInputObj.GetComponent<TMP_InputField>();
+        hud.optionsButton = pOptBtn.GetComponent<Button>();
+        hud.quitButton = pQuitBtn.GetComponent<Button>();
+
+        hud.gameOverPanel = gameOverMenu;
+        hud.finalScoreText = finalScoreText.GetComponent<TextMeshProUGUI>();
+        hud.nameInputField = nameInput.GetComponent<TMP_InputField>();
         hud.submitScoreButton = submitBtn.GetComponent<Button>();
         hud.restartButton = restartBtn.GetComponent<Button>();
-        hud.menuButton = menuBtn.GetComponent<Button>();
+        hud.menuButton = goMenuBtn.GetComponent<Button>();
+
+        // CRITICAL: Load the Cell Prefab created in CreateBuilderAssets
+        hud.cellPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/UI/CellPrefab.prefab");
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
+    }
+    
+    // Helper for the specific black semi-transparent boxes used for Next/Hold
+    private static GameObject CreateUIContainer(Transform parent, string name, Vector2 pos, float size)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        Image img = go.AddComponent<Image>();
+        img.color = new Color(0, 0, 0, 0.5f); // Dark semi-transparent background
+        
+        // Outline
+        Outline outline = go.AddComponent<Outline>();
+        outline.effectColor = new Color(1, 1, 1, 0.2f);
+        outline.effectDistance = new Vector2(2, -2);
+
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(size, size);
+        rect.anchoredPosition = pos;
+        return go;
     }
 
     private static void SetupOptionsScene()
@@ -782,8 +838,32 @@ public class ProjectSetupTools : EditorWindow
     {
         GameObject go = new GameObject(name);
         go.transform.SetParent(parent, false);
-        go.AddComponent<Image>();
-        go.AddComponent<Button>();
+        
+        // --- CHANGED SECTION START ---
+        Image img = go.AddComponent<Image>();
+        
+        // Load the 'Square' sprite generated in CreateBuilderAssets
+        Sprite btnSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Resources/Square.png");
+        if (btnSprite != null) 
+        {
+            img.sprite = btnSprite;
+            img.type = Image.Type.Sliced; // Ensures corners don't stretch weirdly
+            img.pixelsPerUnitMultiplier = 1;
+        }
+        else
+        {
+            // Fallback color if sprite isn't found yet
+            img.color = new Color(0.9f, 0.9f, 0.9f); 
+        }
+        // --- CHANGED SECTION END ---
+
+        Button btn = go.AddComponent<Button>();
+        // Optional: Make the button transition color slightly darker when pressed
+        ColorBlock colors = btn.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.9f, 0.9f, 0.9f);
+        colors.pressedColor = new Color(0.7f, 0.7f, 0.7f);
+        btn.colors = colors;
         
         GameObject txt = new GameObject("Text");
         txt.transform.SetParent(go.transform, false);
@@ -795,16 +875,14 @@ public class ProjectSetupTools : EditorWindow
 
         RectTransform r = go.GetComponent<RectTransform>();
         
-        // FIX: Set Anchors to Center (0.5, 0.5)
-        // This ensures sizeDelta actually controls the size in pixels
+        // Anchors set to Center (0.5, 0.5)
         r.anchorMin = new Vector2(0.5f, 0.5f);
         r.anchorMax = new Vector2(0.5f, 0.5f);
         r.pivot = new Vector2(0.5f, 0.5f);
         
         r.anchoredPosition = pos;
-        r.sizeDelta = new Vector2(160, 40); // Default size
+        r.sizeDelta = new Vector2(160, 40); 
 
-        // Ensure Text component fills its parent (the Button object)
         RectTransform tr = txt.GetComponent<RectTransform>();
         tr.anchorMin = Vector2.zero;
         tr.anchorMax = Vector2.one;

@@ -105,15 +105,22 @@ public class Board : MonoBehaviour
         Camera cam = Camera.main;
         if (cam == null) return;
 
-        // Calculate height needed: Board Height / 2 + Padding (2 units)
-        float targetSize = (boardSize.y / 2f) + 2f;
+        // Height calculation
+        float targetHeight = boardSize.y + 4f; // Board height + padding
         
+        // Set Size
         cam.orthographic = true;
-        cam.orthographicSize = targetSize;
+        cam.orthographicSize = targetHeight / 2f;
         
-        // Center the camera on the board (assuming board is centered at 0,0)
-        // We keep Z at -10 to ensure things are rendered
-        cam.transform.position = new Vector3(0, 0, -10);
+        // Position
+        // Center X: 0 (Board center)
+        // Center Y: -1 (Visual offset to account for ground)
+        cam.transform.position = new Vector3(0, -1, -10);
+        
+        // Viewport Rect
+        // Squeeze the camera rendering into the middle 50% of the screen
+        // to prevent it from being covered by the UI sidebars
+        cam.rect = new Rect(0.25f, 0f, 0.5f, 1f);
     }
 
     private void DrawGrid()
