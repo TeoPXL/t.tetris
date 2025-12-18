@@ -140,13 +140,13 @@ When a player tries to remove a pixel P:
 
 ```mermaid
 flowchart LR
-    A[Request Delete Pixel P] --> B{Is P Anchor?}
-    B -- Yes --> C[Reject]
-    B -- No --> D[Simulate Grid minus P]
-    D --> E[Run Flood Fill from (0,0)]
-    E --> F{Visited Count == Remaining Count?}
-    F -- Yes --> G[Allow Delete]
-    F -- No --> H[Reject (Bridge Detected)]
+    A["Request Delete Pixel P"] --> B{"Is P Anchor?"}
+    B -- Yes --> C["Reject"]
+    B -- No --> D["Simulate Grid minus P"]
+    D --> E["Run Flood Fill from (0,0)"]
+    E --> F{"Visited Count == Remaining Count?"}
+    F -- Yes --> G["Allow Delete"]
+    F -- No --> H["Reject (Bridge Detected)"]
 ```
 
 ---
