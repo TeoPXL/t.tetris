@@ -74,6 +74,18 @@ Tetris has a linear, mutually exclusive flow. You are either in the Menu, Playin
     *   **Paused**: Sets `Time.timeScale = 0`. This effectively freezes the `Block`'s gravity timer without needing extra "isPaused" booleans in every script.
     *   **Menu/GameOver**: Purely logical states that trigger UI overlays.
 
+### 2.3 State Persistence & Destructiveness
+It is critical to understand which transitions clear the game state:
+
+*   **Non-Destructive (Overlay)**:
+    *   **Playing <-> Paused**: Toggling pause simply freezes time. The board, score, and active block remain exactly as they are. The `Board` GameObject is **not** destroyed.
+    *   **Playing -> Game Over**: The state flag changes, showing the Game Over UI, but the final state of the board remains visible in the background.
+
+*   **Destructive (Reset)**:
+    *   **Game Over -> Menu**: This calls `SceneManager.LoadScene("MainMenu")`. The entire `GameScene` (Board, Spawner, Block) is unloaded from memory.
+    *   **Menu -> Playing**: Logic enters `GameScene`. A fresh `Board` and `Grid` are instantiated.
+    *   **Restart**: Reloads `GameScene`, effectively wiping the board clean.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Menu
