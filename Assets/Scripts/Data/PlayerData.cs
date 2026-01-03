@@ -7,6 +7,8 @@ public class PlayerData
     public int score;
     public string dateCompleted;
 
+    public PlayerData() {}
+
     public PlayerData(string name, int score)
     {
         this.playerName = name;
