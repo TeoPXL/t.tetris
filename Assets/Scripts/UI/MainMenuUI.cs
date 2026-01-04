@@ -10,8 +10,28 @@ public class MainMenuUI : MonoBehaviour
     public Button exitButton;
     public Button highScoresButton;
 
+    [Header("Audio")]
+    public AudioClip menuMusic;
+    private AudioSource audioSource;
+
     private void Start()
     {
+        // Setup Music
+        if (menuMusic != null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+
+            audioSource.clip = menuMusic;
+            audioSource.loop = true;
+            audioSource.playOnAwake = false;
+            
+            if (!audioSource.isPlaying) 
+            {
+                audioSource.Play();
+            }
+        }
+
         playButton.onClick.AddListener(() => GameManager.Instance.LoadScene("GameScene"));
         optionsButton.onClick.AddListener(() => GameManager.Instance.LoadScene("OptionsScene"));
         buildButton.onClick.AddListener(() => GameManager.Instance.LoadScene("BuildingScene"));

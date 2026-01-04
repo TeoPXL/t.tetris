@@ -14,6 +14,9 @@ public class OptionsUI : MonoBehaviour
     public Button confirmClearButton;
     public Button cancelClearButton;
 
+    public Slider volumeSlider;
+    public TextMeshProUGUI volumeLabel;
+
     private void Start()
     {
         Debug.Log("OptionsUI Start called.");
@@ -31,16 +34,17 @@ public class OptionsUI : MonoBehaviour
             {
                 Debug.Log("Back Button Clicked");
                 if (GameManager.Instance != null) GameManager.Instance.LoadScene("MainMenu");
-                else Debug.LogError("GameManager Instance is null!");
             });
         }
-        else Debug.LogError("BackButton is not assigned in OptionsUI!");
         
         if (languageDropdown != null) languageDropdown.onValueChanged.AddListener(SetLanguage);
-        else Debug.LogError("LanguageDropdown is not assigned in OptionsUI!");
-
         if (resolutionDropdown != null) resolutionDropdown.onValueChanged.AddListener(SetResolution);
-        else Debug.LogError("ResolutionDropdown is not assigned in OptionsUI!");
+
+        if (volumeSlider != null)
+        {
+            volumeSlider.onValueChanged.AddListener(SetVolume);
+            volumeSlider.value = AudioListener.volume; // Initialize with current volume
+        }
 
         InitializeResolutionDropdown();
         InitializeLanguageDropdown();
@@ -122,6 +126,11 @@ public class OptionsUI : MonoBehaviour
         Screen.SetResolution(resolution.width, resolution.height, Screen.fullScreen);
     }
 
+    private void SetVolume(float value)
+    {
+        AudioListener.volume = value;
+    }
+
     public TextMeshProUGUI resolutionLabel;
     public TextMeshProUGUI languageLabel;
     public TextMeshProUGUI warningText;
@@ -133,6 +142,7 @@ public class OptionsUI : MonoBehaviour
         if (resolutionLabel != null) resolutionLabel.text = LocalizationManager.Instance.GetText("resolution");
         if (languageLabel != null) languageLabel.text = LocalizationManager.Instance.GetText("language");
         if (warningText != null) warningText.text = LocalizationManager.Instance.GetText("confirm_clear");
+        if (volumeLabel != null) volumeLabel.text = "Volume"; // Or generic text if not in dictionary
 
         SetButtonText(clearScoresButton, "clear_scores");
         SetButtonText(backButton, "back");

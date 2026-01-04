@@ -35,8 +35,28 @@ public class GameHUD : MonoBehaviour
 
     private int currentScore = 0;
 
+    [Header("Audio")]
+    public AudioClip gameMusic;
+    private AudioSource audioSource;
+
     private void Start()
     {
+        // Setup Music
+        if (gameMusic != null)
+        {
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+
+            audioSource.clip = gameMusic;
+            audioSource.loop = true;
+            audioSource.playOnAwake = false;
+            
+            if (!audioSource.isPlaying) 
+            {
+                audioSource.Play();
+            }
+        }
+
         // Button Listeners
         if (pauseButton) pauseButton.onClick.AddListener(PauseGame);
         if (resumeButton) resumeButton.onClick.AddListener(ResumeGame);
