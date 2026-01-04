@@ -41,23 +41,42 @@ public class ScoreBoard : MonoBehaviour
     {
         string json = JsonUtility.ToJson(new ScoreListWrapper { scores = HighScores });
         File.WriteAllText(savePath, json);
+        Debug.Log($"ScoreBoard: Saved {HighScores.Count} scores to {savePath}");
     }
 
     private void LoadScores()
     {
         if (File.Exists(savePath))
         {
-            string json = File.ReadAllText(savePath);
-            ScoreListWrapper wrapper = JsonUtility.FromJson<ScoreListWrapper>(json);
-            if (wrapper != null)
+            try 
             {
-                HighScores = wrapper.scores;
+                string json = File.ReadAllText(savePath);
+                Debug.Log($"ScoreBoard: Raw JSON loaded: {json}");
+                
+                ScoreListWrapper wrapper = JsonUtility.FromJson<ScoreListWrapper>(json);
+                if (wrapper != null && wrapper.scores != null)
+                {
+                    HighScores = wrapper.scores;
+                    Debug.Log($"ScoreBoard: Successfully loaded {HighScores.Count} scores.");
+                }
+                else
+                {
+                    Debug.LogWarning("ScoreBoard: JSON parsed but wrapper or scores was null.");
+                }
             }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"ScoreBoard: Failed to load scores: {e.Message}");
+            }
+        }
+        else
+        {
+            Debug.Log("ScoreBoard: No save file found.");
         }
     }
 
     [System.Serializable]
-    private class ScoreListWrapper
+    public class ScoreListWrapper
     {
         public List<PlayerData> scores;
     }
