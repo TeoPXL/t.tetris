@@ -72,6 +72,7 @@ public class LocalizationManager : MonoBehaviour
         englishTexts["reset"] = "Reset";
         englishTexts["saved_blocks"] = "Saved Blocks";
         englishTexts["block_builder"] = "BLOCK BUILDER";
+        englishTexts["leaderboard_title"] = "LEADERBOARD";
         
         dutchTexts["play"] = "Spelen";
         dutchTexts["options"] = "Opties";
@@ -97,5 +98,6 @@ public class LocalizationManager : MonoBehaviour
         dutchTexts["reset"] = "Resetten";
         dutchTexts["saved_blocks"] = "Opgeslagen Blokken";
         dutchTexts["block_builder"] = "BLOKKENBOUWER";
+        dutchTexts["leaderboard_title"] = "KLASSEMENT";
     }
 }
