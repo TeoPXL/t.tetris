@@ -15,6 +15,7 @@ public class MainMenuUI : MonoBehaviour
         playButton.onClick.AddListener(() => GameManager.Instance.LoadScene("GameScene"));
         optionsButton.onClick.AddListener(() => GameManager.Instance.LoadScene("OptionsScene"));
         buildButton.onClick.AddListener(() => GameManager.Instance.LoadScene("BuildingScene"));
+        highScoresButton.onClick.AddListener(() => GameManager.Instance.LoadScene("LeaderboardMenu"));
         exitButton.onClick.AddListener(() => Application.Quit());
         
         if (LocalizationManager.Instance != null)
