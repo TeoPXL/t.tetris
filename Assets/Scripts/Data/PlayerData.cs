@@ -1,18 +1,23 @@
 using System;
 
-[Serializable]
-public class PlayerData
+namespace Data
 {
-    public string playerName;
-    public int score;
-    public string dateCompleted;
-
-    public PlayerData() {}
-
-    public PlayerData(string name, int score)
+    [Serializable]
+    public class PlayerData
     {
-        this.playerName = name;
-        this.score = score;
-        this.dateCompleted = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+        public string playerName;
+        public int score;
+        public string dateCompleted;
+
+        public PlayerData()
+        {
+        }
+
+        public PlayerData(string name, int score)
+        {
+            this.playerName = name;
+            this.score = score;
+            this.dateCompleted = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
+        }
     }
 }

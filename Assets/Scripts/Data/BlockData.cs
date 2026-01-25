@@ -1,17 +1,19 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "NewBlock", menuName = "Tetris/BlockData")]
-public class BlockData : ScriptableObject
+namespace Data
 {
-    [Header("Block Configuration")]
-    public Vector2Int[] cells;
-    public Color color = Color.white;
-
-    public void Initialize()
+    [CreateAssetMenu(fileName = "NewBlock", menuName = "Tetris/BlockData")]
+    public class BlockData : ScriptableObject
     {
-        if (cells == null || cells.Length == 0)
+        [Header("Block Configuration")] public Vector2Int[] cells;
+        public Color color = Color.white;
+
+        public void Initialize()
         {
-            cells = new Vector2Int[] { Vector2Int.zero };
+            if (cells == null || cells.Length == 0)
+            {
+                cells = new Vector2Int[] { Vector2Int.zero };
+            }
         }
     }
 }

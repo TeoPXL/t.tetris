@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8eda1b7fc0b4fa4aa10f1c96efc1662, type: 3}
+  m_Name: Dutch
+  m_EditorClassIdentifier: Assembly-CSharp::Data.LanguageData
+  languageName: Nederlands
+  languageCode: nl
+  translations:
+  - key: play
+    value: Spelen
+  - key: options
+    value: Opties
+  - key: build
+    value: Bouwen
+  - key: exit
+    value: Afsluiten
+  - key: resolution
+    value: Resolutie
+  - key: language
+    value: Taal
+  - key: clear_scores
+    value: Scores Wissen
+  - key: back
+    value: Terug
+  - key: confirm_clear
+    value: Weet je zeker dat je de scores wilt wissen?
+  - key: yes
+    value: Ja
+  - key: no
+    value: Nee
+  - key: resume
+    value: Hervatten
+  - key: main_menu
+    value: Hoofdmenu
+  - key: score
+    value: Score
+  - key: next
+    value: Volgende
+  - key: game_over
+    value: SPEL VOORBIJ
+  - key: final_score
+    value: 'Eindscore: '
+  - key: restart
+    value: Opnieuw
+  - key: submit
+    value: Indienen
+  - key: paused
+    value: GEPAUZEERD
+  - key: save
+    value: Opslaan
+  - key: reset
+    value: Resetten
+  - key: saved_blocks
+    value: Opgeslagen Blokken
+  - key: block_builder
+    value: BLOKKENBOUWER
+  - key: scoreboard
+    value: Topscores
+  - key: try_again
+    value: Opnieuw Proberen
+  - key: hold
+    value: VASTHOUDEN
+  - key: controls
+    value: BESTURING
+  - key: volume
+    value: Volume
+  - key: saved_feedback
+    value: Opgeslagen!
