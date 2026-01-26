@@ -111,6 +111,23 @@ namespace Core
             Camera cam = Camera.main;
             if (cam == null) return;
 
+            // Fix for UI "Stacking" artifacts in the empty screen space:
+            // Create a background camera that clears the ENTIRE screen to black before the main camera renders its viewport.
+            // This ensures the areas outside cam.rect (0.25-0.75) are cleared properly.
+            string bgCamName = "BackgroundClearCam";
+            GameObject bgCamObj = GameObject.Find(bgCamName);
+            if (bgCamObj == null)
+            {
+                bgCamObj = new GameObject(bgCamName);
+                Camera bgCam = bgCamObj.AddComponent<Camera>();
+                bgCam.depth = cam.depth - 1; // Render before main camera
+                bgCam.clearFlags = CameraClearFlags.SolidColor;
+                bgCam.backgroundColor = Color.black;
+                bgCam.cullingMask = 0; // Render nothing, just clear
+                bgCam.orthographic = true; // Match type mostly for safety
+                bgCam.rect = new Rect(0, 0, 1, 1); // Full screen
+            }
+
             // Height calculation
             float targetHeight = boardSize.y + 4f; // Board height + padding
 
