@@ -27,9 +27,22 @@ namespace Core
         public bool canHold = true;
         private Queue<BlockData> nextBlocks = new();
         private const int NextBlockCount = 3;
-        
+
         // Cache the HUD reference to avoid repeated FindFirstObjectByType calls
         private GameHUD cachedHUD;
+        private Camera backgroundCamera; // Track background camera for enabling/disabling
+
+        [Header("Speed Progression")] [Tooltip("Starting drop speed in seconds (higher = slower)")]
+        public float initialStepTime = 1.0f;
+
+        [Tooltip("Minimum drop speed in seconds (the fastest it can get)")]
+        public float minStepTime = 0.15f;
+
+        [Tooltip("How much to reduce step time per minute of gameplay")]
+        public float speedIncreasePerMinute = 0.25f;
+
+        private float currentStepTime;
+        private float gameStartTime;
 
         private void Start()
         {
@@ -49,12 +62,45 @@ namespace Core
 
             FitCamera();
             DrawGrid();
-            
+
+            // Initialize speed progression
+            currentStepTime = initialStepTime;
+            gameStartTime = Time.time;
+
             // Cache the HUD reference once at start
             cachedHUD = FindFirstObjectByType<GameHUD>();
 
             InitializeQueue();
             SpawnBlock();
+        }
+
+        private void Update()
+        {
+            // Only update speed during active gameplay
+            if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Playing)
+            {
+                UpdateSpeed();
+            }
+        }
+
+        private void UpdateSpeed()
+        {
+            // Calculate how many minutes have elapsed
+            float minutesElapsed = (Time.time - gameStartTime) / 60f;
+
+            // Calculate new step time: start speed - (minutes * speed increase rate)
+            float targetStepTime = initialStepTime - (minutesElapsed * speedIncreasePerMinute);
+
+            // Clamp to minimum speed (don't go faster than minStepTime)
+            currentStepTime = Mathf.Max(targetStepTime, minStepTime);
+        }
+
+        /// <summary>
+        /// Get the current drop speed for blocks. Called by Block.cs
+        /// </summary>
+        public float GetCurrentStepTime()
+        {
+            return currentStepTime;
         }
 
         private void InitializeQueue()
@@ -111,22 +157,6 @@ namespace Core
             Camera cam = Camera.main;
             if (cam == null) return;
 
-            // Fix for UI "Stacking" artifacts in the empty screen space:
-            // Create a background camera that clears the ENTIRE screen to black before the main camera renders its viewport.
-            // This ensures the areas outside cam.rect (0.25-0.75) are cleared properly.
-            string bgCamName = "BackgroundClearCam";
-            GameObject bgCamObj = GameObject.Find(bgCamName);
-            if (bgCamObj == null)
-            {
-                bgCamObj = new GameObject(bgCamName);
-                Camera bgCam = bgCamObj.AddComponent<Camera>();
-                bgCam.depth = cam.depth - 1; // Render before main camera
-                bgCam.clearFlags = CameraClearFlags.SolidColor;
-                bgCam.backgroundColor = Color.black;
-                bgCam.cullingMask = 0; // Render nothing, just clear
-                bgCam.orthographic = true; // Match type mostly for safety
-                bgCam.rect = new Rect(0, 0, 1, 1); // Full screen
-            }
 
             // Height calculation
             float targetHeight = boardSize.y + 4f; // Board height + padding
@@ -144,6 +174,55 @@ namespace Core
             // Squeeze the camera rendering into the middle 50% of the screen
             // to prevent it from being covered by the UI sidebars
             cam.rect = new Rect(0.25f, 0f, 0.5f, 1f);
+
+            // Fix for UI "Stacking" artifacts in the empty screen space:
+            // Create a background camera that clears the ENTIRE screen to black before the main camera renders its viewport.
+            // This ensures the areas outside cam.rect (0.25-0.75) are cleared properly.
+            SetupBackgroundCamera(cam);
+        }
+
+        private void SetupBackgroundCamera(Camera mainCam)
+        {
+            string bgCamName = "BackgroundClearCam";
+            GameObject bgCamObj = GameObject.Find(bgCamName);
+            if (bgCamObj == null)
+            {
+                bgCamObj = new GameObject(bgCamName);
+                backgroundCamera = bgCamObj.AddComponent<Camera>();
+                backgroundCamera.depth = mainCam.depth - 1; // Render before main camera
+                backgroundCamera.clearFlags = CameraClearFlags.SolidColor;
+                backgroundCamera.backgroundColor = Color.black;
+                backgroundCamera.cullingMask = 0; // Render nothing, just clear
+                backgroundCamera.orthographic = true;
+                backgroundCamera.rect = new Rect(0, 0, 1, 1); // Full screen
+            }
+            else
+            {
+                backgroundCamera = bgCamObj.GetComponent<Camera>();
+            }
+        }
+
+        /// <summary>
+        /// Disable the background camera to allow full-screen UI overlays to render properly.
+        /// Call this when showing pause menu, game over panel, or switching scenes.
+        /// </summary>
+        public void DisableBackgroundCamera()
+        {
+            if (backgroundCamera != null)
+            {
+                backgroundCamera.enabled = false;
+            }
+        }
+
+        /// <summary>
+        /// Re-enable the background camera for normal gameplay rendering.
+        /// </summary>
+        public void EnableBackgroundCamera()
+        {
+            if (backgroundCamera != null)
+            {
+                backgroundCamera.enabled = true;
+            }
         }
 
         private void DrawGrid()

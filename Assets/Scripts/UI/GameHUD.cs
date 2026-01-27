@@ -124,6 +124,13 @@ namespace UI
 
         public void ShowGameOver(int score)
         {
+            // Disable background camera to allow full-screen UI overlay
+            Board board = FindFirstObjectByType<Board>();
+            if (board != null)
+            {
+                board.DisableBackgroundCamera();
+            }
+            
             if (gameOverPanel != null)
             {
                 gameOverPanel.SetActive(true);
@@ -164,12 +171,26 @@ namespace UI
         {
             GameManager.Instance.SetState(GameManager.GameState.Paused);
             pauseMenuPanel.SetActive(true);
+            
+            // Disable background camera to allow full-screen UI overlay
+            Board board = FindFirstObjectByType<Board>();
+            if (board != null)
+            {
+                board.DisableBackgroundCamera();
+            }
         }
 
         private void ResumeGame()
         {
             GameManager.Instance.SetState(GameManager.GameState.Playing);
             pauseMenuPanel.SetActive(false);
+            
+            // Re-enable background camera for gameplay
+            Board board = FindFirstObjectByType<Board>();
+            if (board != null)
+            {
+                board.EnableBackgroundCamera();
+            }
         }
 
         // --- PREVIEW LOGIC ---

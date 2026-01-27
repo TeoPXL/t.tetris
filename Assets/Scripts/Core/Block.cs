@@ -9,7 +9,6 @@ namespace Core
         public BlockData data;
         public Board board;
 
-        private float stepTime = 1f;
         private float stepTimer = 0f;
         private InputSystem_Actions inputActions;
 
@@ -63,6 +62,9 @@ namespace Core
 
         private void Update()
         {
+            // Get current step time from board (dynamic speed)
+            float stepTime = board != null ? board.GetCurrentStepTime() : 1f;
+            
             stepTimer += Time.deltaTime;
             if (stepTimer >= stepTime)
             {
