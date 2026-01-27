@@ -1,0 +1,77 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e8eda1b7fc0b4fa4aa10f1c96efc1662, type: 3}
+  m_Name: English
+  m_EditorClassIdentifier: Assembly-CSharp::Data.LanguageData
+  languageName: English
+  languageCode: en
+  translations:
+  - key: play
+    value: Play
+  - key: options
+    value: Options
+  - key: build
+    value: Build
+  - key: exit
+    value: Exit
+  - key: resolution
+    value: Resolution
+  - key: language
+    value: Language
+  - key: clear_scores
+    value: Clear Scores
+  - key: back
+    value: Back
+  - key: confirm_clear
+    value: Are you sure you want to clear high scores?
+  - key: yes
+    value: Yes
+  - key: no
+    value: No
+  - key: resume
+    value: Resume
+  - key: main_menu
+    value: Main Menu
+  - key: score
+    value: Score
+  - key: next
+    value: Next
+  - key: game_over
+    value: GAME OVER
+  - key: final_score
+    value: 'Final Score: '
+  - key: restart
+    value: Restart
+  - key: submit
+    value: Submit
+  - key: paused
+    value: PAUSED
+  - key: save
+    value: Save
+  - key: reset
+    value: Reset
+  - key: saved_blocks
+    value: Saved Blocks
+  - key: block_builder
+    value: BLOCK BUILDER
+  - key: scoreboard
+    value: High Scores
+  - key: try_again
+    value: Try Again
+  - key: hold
+    value: HOLD
+  - key: controls
+    value: CONTROLS
+  - key: volume
+    value: Volume
+  - key: saved_feedback
+    value: Saved!

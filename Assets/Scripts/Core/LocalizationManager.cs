@@ -1,101 +1,165 @@
-using UnityEngine;
 using System.Collections.Generic;
+using Data;
+using UnityEngine;
 
-public class LocalizationManager : MonoBehaviour
+namespace Core
 {
-    public static LocalizationManager Instance { get; private set; }
-
-    public enum Language { English, Dutch }
-    public Language CurrentLanguage { get; private set; } = Language.English;
-
-    private Dictionary<string, string> englishTexts = new Dictionary<string, string>();
-    private Dictionary<string, string> dutchTexts = new Dictionary<string, string>();
-
-    private void Awake()
+    /// <summary>
+    /// Manages localization using ScriptableObject-based language data files.
+    /// Add language files to the 'availableLanguages' list in the Inspector.
+    /// </summary>
+    public class LocalizationManager : MonoBehaviour
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-            LoadTexts();
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
-    }
+        public static LocalizationManager Instance { get; private set; }
 
-    public event System.Action OnLanguageChanged;
+        [Header("Language Configuration")]
+        [Tooltip("List of all available language data files. Add your LanguageData assets here.")]
+        public List<LanguageData> availableLanguages = new List<LanguageData>();
 
-    public void SetLanguage(Language lang)
-    {
-        CurrentLanguage = lang;
-        OnLanguageChanged?.Invoke();
-    }
+        [Tooltip("Index of the default language to use on startup (0 = first in list)")]
+        public int defaultLanguageIndex = 0;
 
-    public string GetText(string key)
-    {
-        if (CurrentLanguage == Language.English)
+        private LanguageData currentLanguageData;
+        private int currentLanguageIndex = 0;
+
+        public event System.Action OnLanguageChanged;
+
+        /// <summary>
+        /// Get the name of the current language
+        /// </summary>
+        public string CurrentLanguageName => currentLanguageData != null ? currentLanguageData.languageName : "Unknown";
+
+        /// <summary>
+        /// Get the current language index (for dropdown UI)
+        /// </summary>
+        public int CurrentLanguageIndex => currentLanguageIndex;
+
+        /// <summary>
+        /// Get count of available languages
+        /// </summary>
+        public int LanguageCount => availableLanguages.Count;
+
+        private void Awake()
         {
-            return englishTexts.ContainsKey(key) ? englishTexts[key] : key;
+            if (Instance == null)
+            {
+                Instance = this;
+                DontDestroyOnLoad(gameObject);
+                InitializeLanguage();
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
         }
-        else
-        {
-            return dutchTexts.ContainsKey(key) ? dutchTexts[key] : key;
-        }
-    }
 
-    private void LoadTexts()
-    {
-        // Mock data for now
-        englishTexts["play"] = "Play";
-        englishTexts["options"] = "Options";
-        englishTexts["build"] = "Build";
-        englishTexts["exit"] = "Exit";
-        englishTexts["resolution"] = "Resolution";
-        englishTexts["language"] = "Language";
-        englishTexts["clear_scores"] = "Clear Scores";
-        englishTexts["back"] = "Back";
-        englishTexts["confirm_clear"] = "Are you sure you want to clear high scores?";
-        englishTexts["yes"] = "Yes";
-        englishTexts["no"] = "No";
-        englishTexts["resume"] = "Resume";
-        englishTexts["main_menu"] = "Main Menu";
-        englishTexts["score"] = "Score";
-        englishTexts["next"] = "Next";
-        englishTexts["game_over"] = "GAME OVER";
-        englishTexts["final_score"] = "Final Score: ";
-        englishTexts["restart"] = "Restart";
-        englishTexts["submit"] = "Submit";
-        englishTexts["paused"] = "PAUSED";
-        englishTexts["save"] = "Save";
-        englishTexts["reset"] = "Reset";
-        englishTexts["saved_blocks"] = "Saved Blocks";
-        englishTexts["block_builder"] = "BLOCK BUILDER";
-        
-        dutchTexts["play"] = "Spelen";
-        dutchTexts["options"] = "Opties";
-        dutchTexts["build"] = "Bouwen";
-        dutchTexts["exit"] = "Afsluiten";
-        dutchTexts["resolution"] = "Resolutie";
-        dutchTexts["language"] = "Taal";
-        dutchTexts["clear_scores"] = "Scores Wissen";
-        dutchTexts["back"] = "Terug";
-        dutchTexts["confirm_clear"] = "Weet je zeker dat je de scores wilt wissen?";
-        dutchTexts["yes"] = "Ja";
-        dutchTexts["no"] = "Nee";
-        dutchTexts["resume"] = "Hervatten";
-        dutchTexts["main_menu"] = "Hoofdmenu";
-        dutchTexts["score"] = "Score";
-        dutchTexts["next"] = "Volgende";
-        dutchTexts["game_over"] = "SPEL VOORBIJ";
-        dutchTexts["final_score"] = "Eindscore: ";
-        dutchTexts["restart"] = "Opnieuw";
-        dutchTexts["submit"] = "Indienen";
-        dutchTexts["paused"] = "GEPAUZEERD";
-        dutchTexts["save"] = "Opslaan";
-        dutchTexts["reset"] = "Resetten";
-        dutchTexts["saved_blocks"] = "Opgeslagen Blokken";
-        dutchTexts["block_builder"] = "BLOKKENBOUWER";
+        private void InitializeLanguage()
+        {
+            // Validate setup
+            if (availableLanguages == null || availableLanguages.Count == 0)
+            {
+                Debug.LogError("[LocalizationManager] No language data files assigned! Please add LanguageData assets to the LocalizationManager.");
+                return;
+            }
+
+            // Clamp default index
+            if (defaultLanguageIndex < 0 || defaultLanguageIndex >= availableLanguages.Count)
+            {
+                Debug.LogWarning($"[LocalizationManager] Invalid default language index {defaultLanguageIndex}. Using 0.");
+                defaultLanguageIndex = 0;
+            }
+
+            // Load default language
+            SetLanguageByIndex(defaultLanguageIndex);
+        }
+
+        /// <summary>
+        /// Change language by index (useful for dropdowns)
+        /// </summary>
+        public void SetLanguageByIndex(int index)
+        {
+            if (index < 0 || index >= availableLanguages.Count)
+            {
+                Debug.LogError($"[LocalizationManager] Invalid language index: {index}");
+                return;
+            }
+
+            if (availableLanguages[index] == null)
+            {
+                Debug.LogError($"[LocalizationManager] Language data at index {index} is null!");
+                return;
+            }
+
+            currentLanguageIndex = index;
+            currentLanguageData = availableLanguages[index];
+
+            Debug.Log($"[LocalizationManager] Language changed to: {currentLanguageData.languageName}");
+
+            OnLanguageChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Change language by language code (e.g., "en", "nl")
+        /// </summary>
+        public void SetLanguageByCode(string languageCode)
+        {
+            for (int i = 0; i < availableLanguages.Count; i++)
+            {
+                if (availableLanguages[i] != null && availableLanguages[i].languageCode == languageCode)
+                {
+                    SetLanguageByIndex(i);
+                    return;
+                }
+            }
+
+            Debug.LogWarning($"[LocalizationManager] Language code '{languageCode}' not found.");
+        }
+
+        /// <summary>
+        /// Get translated text by key
+        /// </summary>
+        public string GetText(string key)
+        {
+            if (currentLanguageData == null)
+            {
+                Debug.LogError("[LocalizationManager] No language data loaded!");
+                return key;
+            }
+
+            return currentLanguageData.GetText(key);
+        }
+
+        /// <summary>
+        /// Get the name of a language by index (useful for populating dropdowns)
+        /// </summary>
+        public string GetLanguageName(int index)
+        {
+            if (index >= 0 && index < availableLanguages.Count && availableLanguages[index] != null)
+            {
+                return availableLanguages[index].languageName;
+            }
+
+            return "Unknown";
+        }
+
+        /// <summary>
+        /// Get all language names (useful for populating dropdowns)
+        /// </summary>
+        public List<string> GetAllLanguageNames()
+        {
+            List<string> names = new List<string>();
+            foreach (var lang in availableLanguages)
+            {
+                if (lang != null)
+                {
+                    names.Add(lang.languageName);
+                }
+                else
+                {
+                    names.Add("Missing");
+                }
+            }
+            return names;
+        }
     }
 }
